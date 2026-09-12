@@ -1,0 +1,6 @@
+# Verified CPU OCR runtime. Use a separate, tested lock file for a GPU worker.
+paddleocr==3.7.0
+paddlepaddle==3.3.1
+paddlex[ocr-core]==3.7.2
+# PaddleOCR's OCR core installs OpenCV contrib, which supplies cv2 preprocessing.
+pytesseract==0.3.13

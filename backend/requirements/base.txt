@@ -1,0 +1,17 @@
+Django==5.2.5
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.7.0
+django-filter==25.1
+drf-spectacular==0.28.0
+celery[redis]==5.5.3
+dj-database-url==3.0.1
+psycopg[binary]==3.2.9
+Pillow==11.3.0
+pypdf==5.9.0
+pypdfium2==4.30.0
+pytesseract==0.3.13
+openpyxl==3.1.5
+python-dotenv==1.1.1
+gunicorn==23.0.0
+uvicorn==0.35.0

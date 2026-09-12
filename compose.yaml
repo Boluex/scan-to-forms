@@ -1,0 +1,87 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-scanforms}
+      POSTGRES_USER: ${POSTGRES_USER:-scanforms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scanforms_dev_only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scanforms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      target: development
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scanforms}:${POSTGRES_PASSWORD:-scanforms_dev_only}@db:5432/${POSTGRES_DB:-scanforms}
+      REDIS_URL: redis://redis:6379/0
+      MEDIA_ROOT: /app/media
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./backend:/app
+      - media_data:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      target: ocr-worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scanforms}:${POSTGRES_PASSWORD:-scanforms_dev_only}@db:5432/${POSTGRES_DB:-scanforms}
+      REDIS_URL: redis://redis:6379/0
+      MEDIA_ROOT: /app/media
+      PADDLE_PDX_CACHE_HOME: /models/paddlex
+    command: celery -A config worker -l info
+    volumes:
+      - ./backend:/app
+      - media_data:/app/media
+      - paddlex_cache:/models/paddlex
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    volumes:
+      - ./frontend:/app
+      - frontend_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:
+  frontend_modules:
+  paddlex_cache:
