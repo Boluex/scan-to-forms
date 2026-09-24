@@ -8,6 +8,7 @@ from django.db import transaction
 from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import generics, permissions, status, views
 from rest_framework import serializers as drf_serializers
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from .gateway import (
@@ -88,6 +89,8 @@ class CheckoutView(generics.GenericAPIView):
 
     @transaction.atomic
     def post(self, request):
+        if not settings.ENABLE_PAYSTACK:
+            raise PermissionDenied("Paystack checkout is disabled. Use an order and bank transfer.")
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         product = serializer.validated_data["product"]
@@ -170,6 +173,8 @@ class SubscriptionManageView(views.APIView):
     def post(self, request):
         entitlements = entitlements_for(request.user)
         subscription = entitlements.subscription
+        if entitlements.account != request.user:
+            raise PermissionDenied("Only the subscription owner can manage billing.")
         if not subscription or not subscription.paystack_subscription_code:
             return Response(
                 {"detail": "This subscription is not managed automatically by Paystack. Contact the administrator."},

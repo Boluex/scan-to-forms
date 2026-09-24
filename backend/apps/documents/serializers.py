@@ -201,7 +201,7 @@ class UploadedDocumentSerializer(serializers.ModelSerializer):
                 user=self.context["request"].user,
             )
         document = UploadedDocument.objects.create(
-            owner=self.context["request"].user,
+            owner=validated_data["batch"].owner if validated_data.get("batch") else validated_data["questionnaire"].owner,
             file=upload,
             original_filename=upload.name[:255],
             size_bytes=upload.size,

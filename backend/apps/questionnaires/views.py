@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework import decorators, mixins, status, viewsets
 from rest_framework.response import Response as APIResponse
 
+from apps.core.access import WorkspacePermission, owned
 from apps.core.models import record_audit
 from apps.documents.services.grouping import prepare_bulk_groups, update_batch_status
 
@@ -22,12 +23,13 @@ from .serializers import (
 
 
 class QuestionnaireViewSet(viewsets.ModelViewSet):
+    permission_classes = (WorkspacePermission,)
     serializer_class = QuestionnaireSerializer
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Questionnaire.objects.none()
-        return Questionnaire.objects.filter(owner=self.request.user).prefetch_related(
+        return owned(Questionnaire.objects.all(), self.request.user).prefetch_related(
             "versions__questions__options",
             "versions__template_pages",
         )
@@ -51,6 +53,7 @@ class QuestionnaireViewSet(viewsets.ModelViewSet):
 
 
 class ResponseBatchViewSet(viewsets.ModelViewSet):
+    permission_classes = (WorkspacePermission,)
     serializer_class = ResponseBatchSerializer
     http_method_names = ("get", "post", "delete", "head", "options")
 
@@ -58,7 +61,7 @@ class ResponseBatchViewSet(viewsets.ModelViewSet):
         if getattr(self, "swagger_fake_view", False):
             return ResponseBatch.objects.none()
         return (
-            ResponseBatch.objects.filter(owner=self.request.user)
+            owned(ResponseBatch.objects.all(), self.request.user)
             .select_related("questionnaire_version__questionnaire")
             .annotate(
                 response_count=Count("responses", distinct=True),
@@ -94,6 +97,7 @@ class ResponseBatchViewSet(viewsets.ModelViewSet):
 
 
 class ResponseViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
+    permission_classes = (WorkspacePermission,)
     serializer_class = ResponseSerializer
 
     def get_serializer_class(self):
@@ -103,7 +107,7 @@ class ResponseViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
         if getattr(self, "swagger_fake_view", False):
             return Response.objects.none()
         queryset = (
-            Response.objects.filter(batch__owner=self.request.user)
+            owned(Response.objects.all(), self.request.user, "batch__owner")
             .select_related("batch__questionnaire_version__questionnaire")
             .prefetch_related(
                 "answers__question__options",
@@ -135,12 +139,13 @@ class ResponseViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
 
 
 class AnswerViewSet(viewsets.GenericViewSet):
+    permission_classes = (WorkspacePermission,)
     serializer_class = AnswerSerializer
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Answer.objects.none()
-        return Answer.objects.filter(response__batch__owner=self.request.user).select_related("question", "response")
+        return owned(Answer.objects.all(), self.request.user, "response__batch__owner").select_related("question", "response")
 
     @transaction.atomic
     def partial_update(self, request, pk=None):

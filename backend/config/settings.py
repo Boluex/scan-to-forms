@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.billing",
     "apps.botlab",
     "apps.googleforms",
+    "apps.orders",
 ]
 
 MIDDLEWARE = [
@@ -181,3 +182,28 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", "31536000"))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+# Focused MVP. Legacy customer tools are disabled at the API boundary.
+ENABLE_LEGACY_WORKSPACE = env_bool("ENABLE_LEGACY_WORKSPACE", False)
+ENABLE_PAYSTACK = env_bool("ENABLE_PAYSTACK", False)
+ENABLE_ORGANIZATIONS = False
+ENABLE_PUBLIC_BOTLAB = False
+ENABLE_GOOGLE_OAUTH = False
+ENABLE_WHATSAPP = False
+MANUAL_BANK_TRANSFER_ENABLED = env_bool("MANUAL_BANK_TRANSFER_ENABLED", True)
+BANK_NAME = os.getenv("BANK_NAME", "")
+BANK_ACCOUNT_NAME = os.getenv("BANK_ACCOUNT_NAME", "")
+BANK_ACCOUNT_NUMBER = os.getenv("BANK_ACCOUNT_NUMBER", "")
+DIGITIZATION_PRICE_PER_RESPONDENT_NGN = os.getenv("DIGITIZATION_PRICE_PER_RESPONDENT_NGN", "0")
+SYNTHETIC_PRICE_PER_RESPONSE_NGN = os.getenv("SYNTHETIC_PRICE_PER_RESPONSE_NGN", "0")
+MAX_ORDER_RESPONDENTS = int(os.getenv("MAX_ORDER_RESPONDENTS", "1000"))
+MAX_ORDER_PAGES = int(os.getenv("MAX_ORDER_PAGES", "5000"))
+MAX_SYNTHETIC_RESPONSES = int(os.getenv("MAX_SYNTHETIC_RESPONSES", "1000"))
+PROCESSING_MODE = os.getenv("PROCESSING_MODE", "celery")  # celery or manual (real human transcription)
+TEST_DEPLOYMENT = env_bool("TEST_DEPLOYMENT", False)
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"].update({"order_upload": "120/minute", "order_create": "20/hour"})
+EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)

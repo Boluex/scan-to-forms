@@ -113,9 +113,9 @@ def test_bot_lab_script_keeps_synthetic_classification(client, user):
         },
         format="json",
     )
-    assert created.status_code == 201
-    assert created.data["data_classification"] == "SYNTHETIC DATA — NOT HUMAN RESEARCH RESPONSES"
-    assert "SYNTHETIC DATA — NOT HUMAN RESEARCH RESPONSES" in created.data["script"]
+    assert created.status_code == 400
+    assert "classification" in str(created.data)
+
 
 
 @pytest.mark.django_db

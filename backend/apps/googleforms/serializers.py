@@ -13,13 +13,15 @@ FORM_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,180}$")
 def normalize_form_id(value):
     value = value.strip()
     if value.startswith(("http://", "https://")):
-        path = urlparse(value).path
-        match = re.search(r"/forms/d/([^/]+)", path)
+        parsed = urlparse(value)
+        if parsed.scheme != "https" or parsed.hostname != "docs.google.com" or parsed.username or parsed.password or parsed.port:
+            raise serializers.ValidationError("Use an HTTPS Google Form edit URL at docs.google.com, or its edit Form ID.")
+        match = re.fullmatch(r"/forms/d/([A-Za-z0-9_-]{20,180})(?:/edit)?/?", parsed.path)
         if not match:
-            raise serializers.ValidationError("Use a Google Form edit URL or its Form ID.")
+            raise serializers.ValidationError("Use /forms/d/FORM_ID/edit. Public /d/e/ links and forms.gle short links are unsupported; ask the owner for the edit URL.")
         value = match.group(1)
     if not FORM_ID_PATTERN.fullmatch(value):
-        raise serializers.ValidationError("The Google Form ID is invalid.")
+        raise serializers.ValidationError("The Google Form edit ID is invalid. Ownership is not verified by ScanToForms.")
     return value
 
 
@@ -77,6 +79,8 @@ class AppsScriptCreateSerializer(serializers.Serializer):
         return normalize_form_id(value)
 
     def validate(self, attrs):
+        if attrs["source_type"] == AppsScriptJob.SourceType.BOT_RUN:
+            raise serializers.ValidationError("Synthetic Google submission is blocked: classification is not preserved in the destination form. Deliver labelled CSV instead.")
         source = resolve_script_source(
             self.context["request"].user,
             attrs["source_type"],

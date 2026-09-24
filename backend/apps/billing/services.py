@@ -119,6 +119,8 @@ def reserve_bot_lab_run(user):
 
 
 def require_feature(user, field: str):
+    if user.is_staff:
+        return entitlements_for(user)
     entitlements = entitlements_for(user)
     if not getattr(entitlements.plan, field, False):
         raise FeatureNotAvailable(f"{entitlements.plan.name} does not include this feature. Upgrade to continue.")

@@ -14,6 +14,10 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             return Notification.objects.none()
         return Notification.objects.filter(user=self.request.user)
 
+    @decorators.action(detail=False, methods=("get",), url_path="unread-count")
+    def unread_count(self, request):
+        return Response({"count": self.get_queryset().filter(read_at__isnull=True).count()})
+
     @decorators.action(detail=True, methods=("post",), url_path="mark-read")
     def mark_read(self, request, pk=None):
         notification = self.get_object()

@@ -29,7 +29,7 @@ class SyntheticResponse(TimeStampedModel):
     run = models.ForeignKey(BotRun, on_delete=models.CASCADE, related_name="responses")
     sequence = models.PositiveIntegerField()
     answers = models.JSONField(default=dict)
-    data_label = models.CharField(max_length=80, default="SYNTHETIC DATA — NOT A HUMAN RESEARCH RESPONSE")
+    data_label = models.CharField(max_length=80, default="SYNTHETIC TEST DATA — NOT A HUMAN RESEARCH RESPONSE")
 
     class Meta:
         ordering = ("sequence",)

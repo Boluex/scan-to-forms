@@ -63,6 +63,10 @@ def create_response(batch, respondent_reference="", *, user=None):
 
 
 def ensure_batch_capacity(user, batch, new_response_count=1):
+    if hasattr(batch, "order"):
+        if batch.responses.count() + new_response_count > batch.order.respondent_count:
+            raise PlanLimitExceeded("The order already contains its expected respondents.")
+        return
     plan = entitlements_for(user).plan
     existing = batch.responses.count()
     if existing + new_response_count > plan.batch_size_limit:

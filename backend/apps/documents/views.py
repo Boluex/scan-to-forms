@@ -1,9 +1,11 @@
 from django.db import transaction
 from django.http import FileResponse
 from rest_framework import decorators, mixins, status, throttling, viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from apps.billing.services import reserve_pages
+from apps.core.access import WorkspacePermission, owned
 from apps.core.models import record_audit
 from apps.questionnaires.integrity import invalidate_response
 from apps.questionnaires.models import Response as QuestionnaireResponse
@@ -23,6 +25,7 @@ from .tasks import process_document
 
 
 class UploadThrottle(throttling.UserRateThrottle):
+    permission_classes = (WorkspacePermission,)
     scope = "upload"
 
 
@@ -33,6 +36,7 @@ class UploadedDocumentViewSet(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
+    permission_classes = (WorkspacePermission,)
     serializer_class = UploadedDocumentSerializer
     throttle_classes = (UploadThrottle,)
 
@@ -40,12 +44,17 @@ class UploadedDocumentViewSet(
         if getattr(self, "swagger_fake_view", False):
             return UploadedDocument.objects.none()
         return (
-            UploadedDocument.objects.filter(owner=self.request.user)
+            owned(UploadedDocument.objects.all(), self.request.user)
             .select_related("ocr_job", "response")
             .prefetch_related("pages__ocr_results")
         )
 
     def perform_create(self, serializer):
+        from apps.orders.models import Order
+        batch = serializer.validated_data.get("batch")
+        questionnaire = serializer.validated_data.get("questionnaire")
+        if (batch and Order.objects.filter(response_batch=batch).exists()) or (questionnaire and Order.objects.filter(questionnaire=questionnaire).exists()):
+            raise ValidationError("Use this order's upload endpoint.")
         with transaction.atomic():
             reserve_pages(self.request.user, serializer.validated_data["inspection"]["page_count"])
             document = serializer.save(status=UploadedDocument.Status.QUEUED)
@@ -83,6 +92,11 @@ class UploadedDocumentViewSet(
     @decorators.action(detail=True, methods=("post",))
     def retry(self, request, pk=None):
         document = self.get_object()
+        if document.order_id:
+            from apps.orders.services import require_paid
+            require_paid(document.order)
+        if not hasattr(document, "ocr_job"):
+            raise ValidationError("Start processing through the order first.")
         if document.ocr_job.status not in (OCRJob.Status.FAILED, OCRJob.Status.NEEDS_REVIEW):
             return Response({"detail": "Only failed or reviewed jobs can be reprocessed."}, status=status.HTTP_409_CONFLICT)
         document.ocr_job.status = OCRJob.Status.QUEUED
@@ -105,13 +119,14 @@ class UploadedDocumentViewSet(
 
 
 class ResponsePageViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
+    permission_classes = (WorkspacePermission,)
     http_method_names = ("get", "patch", "head", "options")
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return DocumentPage.objects.none()
         return (
-            DocumentPage.objects.filter(response__batch__owner=self.request.user)
+            owned(DocumentPage.objects.all(), self.request.user, "response__batch__owner")
             .select_related("document", "response__batch")
             .prefetch_related("ocr_results")
         )

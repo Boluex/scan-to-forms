@@ -63,7 +63,7 @@ def test_student_gets_one_labeled_bot_lab_run(client, user):
     assert detail.data["status"] == "COMPLETED"
     exported = client.get(f"/api/v1/bot-lab/runs/{run_id}/csv/")
     assert exported.status_code == 200
-    assert b"SYNTHETIC DATA" in exported.content
+    assert b"SYNTHETIC TEST DATA" in exported.content
 
     second = client.post(
         "/api/v1/bot-lab/runs/",

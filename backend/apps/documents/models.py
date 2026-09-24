@@ -33,6 +33,9 @@ class UploadedDocument(TimeStampedModel):
         BULK_ORDERED = "BULK_ORDERED", "Bulk images in respondent order"
         TEMPLATE = "TEMPLATE", "Questionnaire template"
 
+    order = models.ForeignKey("orders.Order", null=True, blank=True, on_delete=models.PROTECT, related_name="uploads")
+    upload_key = models.CharField(max_length=100, null=True, blank=True)
+
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="uploaded_documents")
     questionnaire = models.ForeignKey(
         "questionnaires.Questionnaire", null=True, blank=True, on_delete=models.CASCADE, related_name="documents"
@@ -57,6 +60,7 @@ class UploadedDocument(TimeStampedModel):
     class Meta:
         ordering = ("-created_at",)
         indexes = [models.Index(fields=("owner", "sha256"))]
+        constraints = [models.UniqueConstraint(fields=("order", "upload_key"), name="unique_order_upload_key")]
 
 
 class DocumentPage(TimeStampedModel):

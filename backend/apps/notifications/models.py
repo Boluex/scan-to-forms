@@ -6,6 +6,11 @@ from apps.core.models import TimeStampedModel
 
 class Notification(TimeStampedModel):
     class Kind(models.TextChoices):
+        PAYMENT_VERIFIED = "PAYMENT_VERIFIED", "Payment verified"
+        PROCESSING_STARTED = "PROCESSING_STARTED", "Processing started"
+        NEEDS_ATTENTION = "NEEDS_ATTENTION", "Needs attention"
+        ORDER_READY = "ORDER_READY", "Order ready"
+        PAYMENT_REJECTED = "PAYMENT_REJECTED", "Payment rejected"
         OCR_COMPLETED = "OCR_COMPLETED", "OCR completed"
         OCR_FAILED = "OCR_FAILED", "OCR failed"
         REVIEW_REQUIRED = "REVIEW_REQUIRED", "Review required"

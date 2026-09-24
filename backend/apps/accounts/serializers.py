@@ -31,8 +31,8 @@ class AccountTokenRefreshSerializer(TokenRefreshSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "email", "name", "username", "institution", "role", "account_status", "email_verified_at")
-        read_only_fields = ("id", "email", "role", "account_status", "email_verified_at")
+        fields = ("id", "email", "name", "username", "institution", "role", "account_status", "email_verified_at", "is_staff")
+        read_only_fields = ("id", "email", "role", "account_status", "email_verified_at", "is_staff")
 
 
 class RegistrationSerializer(serializers.ModelSerializer):

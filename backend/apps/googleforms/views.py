@@ -3,6 +3,7 @@ from rest_framework import decorators, generics, status, viewsets
 from rest_framework.response import Response
 
 from apps.billing.services import require_feature
+from apps.core.access import WorkspacePermission, owned
 from apps.core.models import record_audit
 
 from .models import AppsScriptJob
@@ -15,6 +16,7 @@ from .services import resolve_script_source, source_preview
 
 
 class AppsScriptPreviewView(generics.GenericAPIView):
+    permission_classes = (WorkspacePermission,)
     serializer_class = AppsScriptPreviewSerializer
 
     def get(self, request):
@@ -26,12 +28,13 @@ class AppsScriptPreviewView(generics.GenericAPIView):
 
 
 class AppsScriptJobViewSet(viewsets.ModelViewSet):
+    permission_classes = (WorkspacePermission,)
     http_method_names = ("get", "post", "delete", "head", "options")
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return AppsScriptJob.objects.none()
-        return AppsScriptJob.objects.filter(owner=self.request.user).select_related(
+        return owned(AppsScriptJob.objects.all(), self.request.user).select_related(
             "batch",
             "bot_run__questionnaire_version__questionnaire",
         )

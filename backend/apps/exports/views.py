@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework import generics
 
 from apps.billing.services import require_feature
+from apps.core.access import WorkspacePermission, owned
 from apps.core.models import record_audit
 from apps.notifications.models import Notification
 from apps.questionnaires.models import ResponseBatch
@@ -14,15 +15,17 @@ from .services import render_csv, render_xlsx
 
 
 class ExportHistoryView(generics.ListAPIView):
+    permission_classes = (WorkspacePermission,)
     serializer_class = ExportJobSerializer
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return ExportJob.objects.none()
-        return ExportJob.objects.filter(owner=self.request.user).select_related("batch")
+        return owned(ExportJob.objects.all(), self.request.user).select_related("batch")
 
 
 class BatchExportView(generics.GenericAPIView):
+    permission_classes = (WorkspacePermission,)
     format_name = None
     serializer_class = ExportJobSerializer
 
@@ -30,9 +33,8 @@ class BatchExportView(generics.GenericAPIView):
         if self.format_name == ExportJob.Format.XLSX:
             require_feature(request.user, "has_xlsx")
         batch = get_object_or_404(
-            ResponseBatch.objects.select_related("questionnaire_version__questionnaire"),
+            owned(ResponseBatch.objects.select_related("questionnaire_version__questionnaire"), request.user),
             pk=batch_id,
-            owner=request.user,
         )
         export = ExportJob.objects.create(owner=request.user, batch=batch, format=self.format_name)
         try:
@@ -68,8 +70,10 @@ class BatchExportView(generics.GenericAPIView):
 
 
 class BatchCSVExportView(BatchExportView):
+    permission_classes = (WorkspacePermission,)
     format_name = ExportJob.Format.CSV
 
 
 class BatchXLSXExportView(BatchExportView):
+    permission_classes = (WorkspacePermission,)
     format_name = ExportJob.Format.XLSX

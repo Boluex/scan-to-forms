@@ -1,4 +1,7 @@
+import shutil
+import tempfile
 import time
+from pathlib import Path
 
 from celery import shared_task
 from django.conf import settings
@@ -50,6 +53,11 @@ def process_document(self, job_id):
         "document__response",
     ).get(pk=job_id)
     document = job.document
+    if document.order_id:
+        from apps.orders.services import document_started
+        document_started(document)
+    if job.status == OCRJob.Status.PROCESSING:
+        return str(document.id)
     if document.document_type == UploadedDocument.Type.RESPONSE and not document.response_id:
         document.response = create_response(document.batch)
         document.save(update_fields=("response", "updated_at"))
@@ -78,7 +86,11 @@ def process_document(self, job_id):
     warnings = []
     confidence = None
     try:
-        output = extract_document(document.file.path, settings.OCR_ENGINE)
+        with tempfile.TemporaryDirectory(prefix="scanforms-ocr-") as directory:
+            local_path = Path(directory) / ("input" + Path(document.original_filename).suffix.lower())
+            with document.file.open("rb") as source, local_path.open("wb") as destination:
+                shutil.copyfileobj(source, destination)
+            output = extract_document(local_path, settings.OCR_ENGINE)
         all_regions = []
         confidence_values = []
         processed_page_numbers = set()
@@ -239,4 +251,7 @@ def process_document(self, job_id):
                 message=f"{document.original_filename} has finished processing.",
                 data={"document_id": str(document.id), **structured},
             )
+        if document.order_id:
+            from apps.orders.services import document_finished
+            document_finished(document)
     return str(document.id)

@@ -7,6 +7,7 @@ from rest_framework import decorators, status, viewsets
 from rest_framework.response import Response
 
 from apps.billing.services import reserve_bot_lab_run
+from apps.core.access import WorkspacePermission, owned
 from apps.core.models import record_audit
 from apps.core.spreadsheets import safe_cell
 
@@ -16,13 +17,14 @@ from .tasks import generate_synthetic_responses
 
 
 class BotRunViewSet(viewsets.ModelViewSet):
+    permission_classes = (WorkspacePermission,)
     serializer_class = BotRunSerializer
     http_method_names = ("get", "post", "delete", "head", "options")
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return BotRun.objects.none()
-        return BotRun.objects.filter(owner=self.request.user).select_related(
+        return owned(BotRun.objects.all(), self.request.user).select_related(
             "questionnaire_version__questionnaire"
         )
 
@@ -41,19 +43,23 @@ class BotRunViewSet(viewsets.ModelViewSet):
         run = self.get_object()
         if run.status != BotRun.Status.COMPLETED:
             return Response({"detail": "This synthetic dataset is not ready."}, status=status.HTTP_409_CONFLICT)
-        questions = list(run.questionnaire_version.questions.order_by("position"))
-        output = StringIO(newline="")
-        writer = csv.writer(output)
-        writer.writerow(["data_label", "synthetic_response_id", *[safe_cell(question.text) for question in questions]])
-        for response in run.responses.all():
-            row = [response.data_label, str(response.id)]
-            for question in questions:
-                value = response.answers.get(question.key)
-                row.append("; ".join(map(str, value)) if isinstance(value, list) else value)
-            writer.writerow([safe_cell(value) for value in row])
-        payload = output.getvalue().encode("utf-8-sig")
+        payload = synthetic_csv(run)
         http_response = HttpResponse(payload, content_type="text/csv; charset=utf-8")
         http_response["Content-Disposition"] = f'attachment; filename="synthetic-{run.id}.csv"'
         record_audit(actor=request.user, action="bot_lab.csv", target=run, request=request)
         return http_response
 
+
+
+def synthetic_csv(run):
+    questions = list(run.questionnaire_version.questions.order_by("position"))
+    output = StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(["data_label", "synthetic_response_id", *[safe_cell(q.text) for q in questions]])
+    for response in run.responses.all():
+        row = ["SYNTHETIC TEST DATA — NOT HUMAN RESEARCH RESPONSES", str(response.id)]
+        for question in questions:
+            value = response.answers.get(question.key)
+            row.append("; ".join(map(str, value)) if isinstance(value, list) else value)
+        writer.writerow([safe_cell(value) for value in row])
+    return output.getvalue().encode("utf-8-sig")

@@ -108,7 +108,7 @@ def apply_subscription_event(event_type, data):
     subscription_code = subscription_data.get("subscription_code", "")
     customer = data.get("customer") or subscription_data.get("customer") or {}
     email = str(customer.get("email", "")).lower()
-    subscription = Subscription.objects.filter(paystack_subscription_code=subscription_code).first()
+    subscription = Subscription.objects.filter(paystack_subscription_code=subscription_code).first() if subscription_code else None
     if not subscription and email:
         subscription = Subscription.objects.filter(user__email__iexact=email).first()
     if event_type == "subscription.create":
