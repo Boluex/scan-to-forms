@@ -37,8 +37,11 @@ def human_source(user):
         type=Question.Type.SHORT_TEXT,
     )
     batch = ResponseBatch.objects.create(owner=user, questionnaire_version=version, name="Reviewed batch")
-    response = Response.objects.create(batch=batch, status=Response.Status.CONFIRMED)
+    response = Response.objects.create(batch=batch, status=Response.Status.CONFIRMED, confirmed_at=timezone.now())
     Answer.objects.create(response=response, question=question, value_text="Computer Science", confidence=.98)
+    from tests.test_response_grouping import completed_page
+    completed_page(user, response, 1, question.text, "Computer Science")
+    response.answers.update(review_status="APPROVED", provenance="APPROVED")
     return batch, version
 
 

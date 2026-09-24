@@ -39,6 +39,8 @@ def test_low_confidence_answers_block_confirmation(client, user):
     item = Response.objects.create(batch=batch, status=Response.Status.NEEDS_REVIEW)
     answer = Answer.objects.create(response=item, question=question, value_text="CS", confidence=.4)
 
+    from tests.test_response_grouping import completed_page
+    completed_page(user, item, 1, question.text, "CS")
     blocked = client.post(f"/api/v1/responses/{item.id}/confirm/", {}, format="json")
     assert blocked.status_code == 409
 

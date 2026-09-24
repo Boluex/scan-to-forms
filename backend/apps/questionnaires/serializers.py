@@ -2,6 +2,7 @@ from django.db import transaction
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from apps.core.access import can_access
 from apps.documents.serializers import ResponsePageSerializer
 from apps.documents.services.grouping import create_response
 
@@ -136,7 +137,7 @@ class ResponseBatchSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "status", "response_count", "physical_page_count", "expected_page_count", "created_at")
 
     def validate_questionnaire_version(self, value):
-        if value.questionnaire.owner_id != self.context["request"].user.id:
+        if not can_access(self.context["request"].user, value.questionnaire.owner_id):
             raise serializers.ValidationError("Questionnaire version not found.")
         return value
 
@@ -163,11 +164,12 @@ class AnswerSerializer(serializers.ModelSerializer):
             "value_json",
             "confidence",
             "review_status",
+            "provenance",
             "source_region",
             "raw_value",
             "updated_at",
         )
-        read_only_fields = ("id", "question", "confidence", "source_region", "raw_value", "updated_at")
+        read_only_fields = ("id", "question", "provenance", "confidence", "source_region", "raw_value", "updated_at")
 
     def validate_review_status(self, value):
         if value not in (Answer.ReviewStatus.APPROVED, Answer.ReviewStatus.REJECTED):
@@ -175,11 +177,13 @@ class AnswerSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-        instance = super().update(instance, validated_data)
-        if instance.review_status not in (Answer.ReviewStatus.APPROVED, Answer.ReviewStatus.REJECTED):
-            instance.review_status = Answer.ReviewStatus.CORRECTED
-            instance.save(update_fields=["review_status", "updated_at"])
-        return instance
+        changed = any(key in validated_data and validated_data[key] != getattr(instance, key) for key in ("value_text", "value_json"))
+        if changed:
+            validated_data["provenance"] = Answer.Provenance.MANUAL
+            validated_data.setdefault("review_status", Answer.ReviewStatus.CORRECTED)
+        elif validated_data.get("review_status") == Answer.ReviewStatus.APPROVED:
+            validated_data["provenance"] = Answer.Provenance.APPROVED
+        return super().update(instance, validated_data)
 
 
 class ResponseSerializer(serializers.ModelSerializer):
@@ -222,7 +226,7 @@ class ResponseCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "sequence", "expected_page_count", "status")
 
     def validate_batch(self, value):
-        if value.owner_id != self.context["request"].user.id:
+        if not can_access(self.context["request"].user, value.owner_id):
             raise serializers.ValidationError("Response batch not found.")
         return value
 

@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from apps.core.access import can_access
 from apps.questionnaires.models import Response
 
 from .models import DocumentPage, ExtractionResult, OCRJob, OCRResult, UploadedDocument
@@ -92,7 +93,7 @@ class ResponsePageUpdateSerializer(serializers.ModelSerializer):
 
     def validate_response(self, value):
         user = self.context["request"].user
-        if value.batch.owner_id != user.id:
+        if not can_access(user, value.batch.owner_id):
             raise serializers.ValidationError("Response not found.")
         if value.batch_id != self.instance.response.batch_id:
             raise serializers.ValidationError("A page can only move between responses in the same batch.")
@@ -108,7 +109,7 @@ class ResponsePageUpdateSerializer(serializers.ModelSerializer):
                 target = Response.objects.get(pk=response, batch__owner=self.context["request"].user)
             except (Response.DoesNotExist, DjangoValidationError, ValueError) as exc:
                 raise serializers.ValidationError("Response not found.") from exc
-        if value < 1 or value > target.expected_page_count:
+        if value is None or value < 1 or value > target.expected_page_count:
             raise serializers.ValidationError(f"Choose a page number from 1 to {target.expected_page_count}.")
         return value
 
@@ -166,12 +167,12 @@ class UploadedDocumentSerializer(serializers.ModelSerializer):
         batch = attrs.get("batch")
         response = attrs.get("response")
         if document_type == UploadedDocument.Type.TEMPLATE:
-            if not questionnaire or questionnaire.owner_id != user.id or batch:
+            if not questionnaire or not can_access(user, questionnaire.owner_id) or batch or response:
                 raise serializers.ValidationError("A template upload requires your questionnaire and no response batch.")
         elif document_type == UploadedDocument.Type.RESPONSE:
-            if not batch or batch.owner_id != user.id or questionnaire:
+            if not batch or not can_access(user, batch.owner_id) or questionnaire:
                 raise serializers.ValidationError("A response upload requires your response batch and no questionnaire.")
-            if response and (response.batch_id != batch.id or response.batch.owner_id != user.id):
+            if response and (response.batch_id != batch.id or not can_access(user, response.batch.owner_id)):
                 raise serializers.ValidationError("The selected response does not belong to this batch.")
         attrs["inspection"] = inspect_upload(attrs["upload"])
         if document_type == UploadedDocument.Type.RESPONSE:

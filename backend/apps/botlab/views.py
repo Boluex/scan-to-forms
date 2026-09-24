@@ -8,6 +8,7 @@ from rest_framework.response import Response
 
 from apps.billing.services import reserve_bot_lab_run
 from apps.core.models import record_audit
+from apps.core.spreadsheets import safe_cell
 
 from .models import BotRun
 from .serializers import BotRunSerializer
@@ -43,13 +44,13 @@ class BotRunViewSet(viewsets.ModelViewSet):
         questions = list(run.questionnaire_version.questions.order_by("position"))
         output = StringIO(newline="")
         writer = csv.writer(output)
-        writer.writerow(["data_label", "synthetic_response_id", *[question.text for question in questions]])
+        writer.writerow(["data_label", "synthetic_response_id", *[safe_cell(question.text) for question in questions]])
         for response in run.responses.all():
             row = [response.data_label, str(response.id)]
             for question in questions:
                 value = response.answers.get(question.key)
                 row.append("; ".join(map(str, value)) if isinstance(value, list) else value)
-            writer.writerow(row)
+            writer.writerow([safe_cell(value) for value in row])
         payload = output.getvalue().encode("utf-8-sig")
         http_response = HttpResponse(payload, content_type="text/csv; charset=utf-8")
         http_response["Content-Disposition"] = f'attachment; filename="synthetic-{run.id}.csv"'

@@ -170,10 +170,20 @@ class Response(TimeStampedModel):
 
     class Meta:
         ordering = ("sequence", "created_at")
-        constraints = [models.UniqueConstraint(fields=("batch", "sequence"), name="unique_response_sequence_per_batch")]
+        constraints = [
+            models.UniqueConstraint(fields=("batch", "sequence"), name="unique_response_sequence_per_batch"),
+            models.CheckConstraint(condition=(models.Q(status="CONFIRMED", confirmed_at__isnull=False) | (~models.Q(status="CONFIRMED") & models.Q(confirmed_at__isnull=True))), name="response_confirmation_consistent"),
+        ]
 
 
 class Answer(TimeStampedModel):
+    class Provenance(models.TextChoices):
+        OCR = "OCR", "OCR"
+        MANUAL = "MANUAL", "Human correction"
+        APPROVED = "APPROVED", "Human approved"
+
+    provenance = models.CharField(max_length=12, choices=Provenance.choices, default=Provenance.OCR)
+
     class ReviewStatus(models.TextChoices):
         AUTO_HIGH = "AUTO_HIGH", "High confidence"
         AUTO_MEDIUM = "AUTO_MEDIUM", "Medium confidence"

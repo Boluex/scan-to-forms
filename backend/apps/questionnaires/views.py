@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
 from rest_framework import decorators, mixins, status, viewsets
@@ -6,6 +7,7 @@ from rest_framework.response import Response as APIResponse
 from apps.core.models import record_audit
 from apps.documents.services.grouping import prepare_bulk_groups, update_batch_status
 
+from .integrity import final_errors, invalidate_response
 from .models import Answer, Questionnaire, Response, ResponseBatch
 from .serializers import (
     AnswerSerializer,
@@ -120,45 +122,9 @@ class ResponseViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     @decorators.action(detail=True, methods=("post",))
     def confirm(self, request, pk=None):
         response = self.get_object()
-        blocking_page_issues = [
-            issue
-            for page in response.pages.all()
-            for issue in page.validation_issues
-        ]
-        blocking_response_issues = [
-            issue for issue in response.validation_issues if issue.get("severity", "ERROR") == "ERROR"
-        ]
-        if response.status in {
-            Response.Status.UPLOADING,
-            Response.Status.INCOMPLETE,
-            Response.Status.READY_FOR_PROCESSING,
-            Response.Status.PROCESSING,
-            Response.Status.FAILED,
-        } or blocking_page_issues or blocking_response_issues:
-            return APIResponse(
-                {
-                    "detail": "Resolve response-page grouping and processing issues before confirming.",
-                    "response_issues": response.validation_issues,
-                    "page_issues": blocking_page_issues,
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-        unresolved = response.answers.filter(review_status=Answer.ReviewStatus.NEEDS_REVIEW).count()
-        if unresolved:
-            return APIResponse(
-                {"detail": f"Review {unresolved} low-confidence answer(s) before confirming."},
-                status=status.HTTP_409_CONFLICT,
-            )
-        required_missing = [
-            answer.question.text
-            for answer in response.answers.all()
-            if answer.question.required and not answer.value_text.strip() and answer.value_json in ({}, [], None)
-        ]
-        if required_missing:
-            return APIResponse(
-                {"detail": {"message": "Required answers are missing.", "questions": required_missing}},
-                status=status.HTTP_409_CONFLICT,
-            )
+        errors = final_errors(response, require_confirmation=False)
+        if errors:
+            return APIResponse({"detail": errors}, status=status.HTTP_409_CONFLICT)
         response.status = Response.Status.CONFIRMED
         response.confirmed_at = timezone.now()
         response.reviewed_by = request.user
@@ -176,13 +142,13 @@ class AnswerViewSet(viewsets.GenericViewSet):
             return Answer.objects.none()
         return Answer.objects.filter(response__batch__owner=self.request.user).select_related("question", "response")
 
+    @transaction.atomic
     def partial_update(self, request, pk=None):
         answer = self.get_object()
         serializer = self.get_serializer(answer, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        if answer.response.status == Response.Status.PROCESSING:
-            answer.response.status = Response.Status.NEEDS_REVIEW
-            answer.response.save(update_fields=["status", "updated_at"])
+        invalidate_response(answer.response)
+        update_batch_status(answer.response.batch_id)
         record_audit(actor=request.user, action="answer.corrected", target=answer, request=request)
         return APIResponse(serializer.data)

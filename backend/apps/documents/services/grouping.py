@@ -9,6 +9,7 @@ from django.db.models import Max
 
 from apps.billing.exceptions import PlanLimitExceeded
 from apps.billing.services import entitlements_for
+from apps.questionnaires.integrity import invalidate_response
 from apps.questionnaires.models import Answer, Response, ResponseBatch, TemplatePage
 
 from ..models import DocumentPage, OCRJob, UploadedDocument
@@ -137,6 +138,7 @@ def create_document_pages(document, template_page_number=None):
             )
         )
     if response:
+        invalidate_response(response, recheck_answers=True)
         refresh_response_validation(response.id)
     return pages
 
@@ -306,9 +308,12 @@ def refresh_response_validation(response_id):
         status = Response.Status.READY_FOR_PROCESSING
     else:
         status = Response.Status.UPLOADING
-    if response.status not in (Response.Status.CONFIRMED, Response.Status.REJECTED) or status == Response.Status.FAILED:
+    blocking = any(i.get("severity", "ERROR") == "ERROR" for i in response_issues) or any(p.validation_issues or p.processing_status != "COMPLETED" for p in pages)
+    if response.status != Response.Status.CONFIRMED or blocking:
         response.status = status
-    response.save(update_fields=("status", "validation_issues", "updated_at"))
+        response.confirmed_at = None
+        response.reviewed_by = None
+    response.save(update_fields=("status", "confirmed_at", "reviewed_by", "validation_issues", "updated_at"))
     return response
 
 
@@ -350,10 +355,8 @@ def aggregate_response_answers(response_id, *, force=False):
     statuses = list(response.documents.values_list("ocr_job__status", flat=True))
     if not statuses:
         if force:
-            response.answers.all().delete()
-            response.confirmed_at = None
-            response.reviewed_by = None
-            response.save(update_fields=("confirmed_at", "reviewed_by", "updated_at"))
+            response.answers.filter(provenance=Answer.Provenance.OCR).exclude(review_status__in=(Answer.ReviewStatus.CORRECTED, Answer.ReviewStatus.APPROVED)).delete()
+            invalidate_response(response, recheck_answers=True)
         response = refresh_response_validation(response.id)
         return response, False
     if any(status in (None, OCRJob.Status.QUEUED, OCRJob.Status.PROCESSING) for status in statuses):
@@ -375,11 +378,14 @@ def aggregate_response_answers(response_id, *, force=False):
     regions = _response_regions(response)
     questions = response.batch.questionnaire_version.questions.all()
     mappings = map_answers(questions, regions)
-    response.answers.all().delete()
-    Answer.objects.bulk_create([Answer(response=response, **mapping) for mapping in mappings])
-    response.confirmed_at = None
-    response.reviewed_by = None
-    response.save(update_fields=("confirmed_at", "reviewed_by", "updated_at"))
+    existing = {answer.question_id: answer for answer in response.answers.all()}
+    for mapping in mappings:
+        previous = existing.get(mapping["question"].id)
+        if previous and (previous.provenance != Answer.Provenance.OCR or previous.review_status in (Answer.ReviewStatus.CORRECTED, Answer.ReviewStatus.APPROVED)):
+            continue
+        Answer.objects.update_or_create(response=response, question=mapping["question"], defaults={k: v for k, v in mapping.items() if k != "question"})
+    invalidate_response(response)
+
     response = refresh_response_validation(response.id)
     return response, True
 

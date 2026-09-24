@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 from openpyxl import load_workbook
 from PIL import Image
 from pypdf import PdfWriter
@@ -334,9 +335,11 @@ def test_csv_and_xlsx_have_one_row_per_multi_page_respondent(client, user, gener
         for page_number in range(1, 5):
             completed_page(user, response, page_number, "Unused?", "Unused")
         response.status = Response.Status.CONFIRMED
-        response.save(update_fields=("status", "updated_at"))
+        response.confirmed_at = timezone.now()
+        response.save(update_fields=("status", "confirmed_at", "updated_at"))
         Answer.objects.create(response=response, question=question, value_text=f"Department {sequence}", confidence=.99)
 
+    Answer.objects.all().update(review_status="APPROVED", provenance="APPROVED")
     csv_response = client.get(f"/api/v1/exports/batches/{batch.id}/csv/")
     rows = list(csv.reader(StringIO(csv_response.content.decode("utf-8-sig"))))
     assert len(rows) == 3
@@ -462,8 +465,10 @@ def test_google_forms_source_has_one_record_for_one_four_page_respondent(user):
         completed_page(user, response, page_number, "Unused?", "Unused")
     Answer.objects.create(response=response, question=question, value_text="Computer Science", confidence=.99)
     response.status = Response.Status.CONFIRMED
-    response.save(update_fields=("status", "updated_at"))
+    response.confirmed_at = timezone.now()
+    response.save(update_fields=("status", "confirmed_at", "updated_at"))
 
+    Answer.objects.all().update(review_status="APPROVED", provenance="APPROVED")
     source = resolve_script_source(user, AppsScriptJob.SourceType.RESPONSE_BATCH, batch.id)
     assert len(source.responses) == 1
     assert source.responses[0]["id"] == str(response.id)

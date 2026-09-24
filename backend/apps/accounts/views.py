@@ -71,6 +71,8 @@ class VerifyEmailView(generics.GenericAPIView):
         user = token.user
         from django.utils import timezone
 
+        if not user.is_active or user.account_status in (User.AccountStatus.SUSPENDED, User.AccountStatus.DEACTIVATED):
+            return Response({"detail": "This account is not available."}, status=status.HTTP_403_FORBIDDEN)
         user.email_verified_at = timezone.now()
         user.account_status = User.AccountStatus.ACTIVE
         user.save(update_fields=["email_verified_at", "account_status"])
@@ -91,7 +93,10 @@ class LogoutView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            RefreshToken(serializer.validated_data["refresh"]).blacklist()
+            token = RefreshToken(serializer.validated_data["refresh"])
+            if str(token.get("user_id")) != str(request.user.pk):
+                return Response(status=status.HTTP_403_FORBIDDEN)
+            token.blacklist()
         except (ValueError, TokenError):
             return Response({"detail": "A valid refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
         record_audit(actor=request.user, action="auth.logout", target=request.user, request=request)
@@ -116,9 +121,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
         user = User.objects.filter(email__iexact=serializer.validated_data["email"], is_active=True).first()
         if user:
             data = serializer.token_for_user(user)
-            reset_url = request.build_absolute_uri(
-                reverse("password-reset-confirm") + f"?uid={data['uid']}&token={data['token']}"
-            )
+            reset_url = settings.FRONTEND_URL + f"/reset-password?uid={data['uid']}&token={data['token']}"
             send_mail("Reset your ScanToForms password", reset_url, settings.DEFAULT_FROM_EMAIL, [user.email])
             record_audit(actor=user, action="auth.password_reset_requested", target=user, request=request)
         return Response({"detail": "If that account exists, reset instructions have been sent."})

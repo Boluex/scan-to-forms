@@ -3,12 +3,13 @@ from io import BytesIO, StringIO
 
 from openpyxl import Workbook
 
+from apps.core.spreadsheets import safe_cell
+from apps.questionnaires.integrity import final_responses
+
 
 def batch_table(batch):
     questions = list(batch.questionnaire_version.questions.order_by("position"))
-    responses = list(
-        batch.responses.prefetch_related("answers__question").order_by("created_at")
-    )
+    responses = final_responses(batch)
     headers = ["response_id", "respondent_reference", "status"] + [question.text for question in questions]
     rows = []
     for response in responses:
@@ -24,7 +25,7 @@ def batch_table(batch):
             else:
                 row.append(answer.value_text)
         rows.append(row)
-    return headers, rows
+    return [safe_cell(v) for v in headers], [[safe_cell(v) for v in row] for row in rows]
 
 
 def render_csv(batch):

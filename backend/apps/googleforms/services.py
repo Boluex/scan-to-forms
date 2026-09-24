@@ -4,7 +4,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from apps.botlab.models import BotRun
-from apps.questionnaires.models import Response, ResponseBatch
+from apps.questionnaires.integrity import final_responses
+from apps.questionnaires.models import ResponseBatch
 
 from .models import AppsScriptJob
 
@@ -33,11 +34,7 @@ def resolve_script_source(user, source_type, source_id):
             ).get(pk=source_id, owner=user)
         except (ResponseBatch.DoesNotExist, DjangoValidationError, ValueError) as exc:
             raise serializers.ValidationError("Response batch not found.") from exc
-        confirmed = list(
-            batch.responses.filter(status=Response.Status.CONFIRMED)
-            .prefetch_related("answers__question")
-            .order_by("created_at")
-        )
+        confirmed = final_responses(batch)
         if not confirmed:
             raise serializers.ValidationError("Confirm at least one reviewed response before generating Apps Script.")
         responses = []

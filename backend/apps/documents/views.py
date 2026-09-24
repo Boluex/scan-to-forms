@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from apps.billing.services import reserve_pages
 from apps.core.models import record_audit
+from apps.questionnaires.integrity import invalidate_response
 from apps.questionnaires.models import Response as QuestionnaireResponse
 
 from .models import DocumentPage, OCRJob, UploadedDocument
@@ -64,6 +65,7 @@ class UploadedDocumentViewSet(
         response = super().destroy(request, *args, **kwargs)
         transaction.on_commit(lambda: storage.delete(name))
         if response_id:
+            invalidate_response(QuestionnaireResponse.objects.get(pk=response_id), recheck_answers=True)
             def regroup_after_delete():
                 refresh_response_validation(response_id)
                 aggregate_response_answers(response_id, force=True)
@@ -135,9 +137,7 @@ class ResponsePageViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, vi
         affected = {old_response_id, page.response_id}
         for response_id in affected:
             response = QuestionnaireResponse.objects.get(pk=response_id)
-            response.confirmed_at = None
-            response.reviewed_by = None
-            response.save(update_fields=("confirmed_at", "reviewed_by", "updated_at"))
+            invalidate_response(response, recheck_answers=True)
             refresh_response_validation(response_id)
             aggregate_response_answers(response_id, force=True)
             update_batch_status(response.batch_id)
