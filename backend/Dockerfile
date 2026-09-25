@@ -1,3 +1,6 @@
+# Render passes service environment variables as Docker build arguments.
+# Preserve the default API image while allowing Render to select the existing worker.
+ARG RENDER_TARGET=production
 FROM python:3.13-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -37,3 +40,5 @@ RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
 CMD ["sh", "scripts/start-web.sh"]
+
+FROM ${RENDER_TARGET} AS render

@@ -1,5 +1,6 @@
-# Controlled beta: real operator transcription, no mocked or background OCR.
-# Supply private object storage and SMTP before accepting customer data.
+# Controlled real-OCR acceptance: paid API/worker/queue, shared private object storage.
+# Supply PostgreSQL, storage, SMTP, and business configuration before deployment.
+# Worker sizing is an initial test candidate, not measured capacity or a free tier.
 services:
   - type: web
     name: scantoforms-api
@@ -26,7 +27,14 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: PROCESSING_MODE
-        value: manual
+        value: celery
+      - key: CELERY_TASK_ALWAYS_EAGER
+        value: 'false'
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: scantoforms-redis
+          property: connectionString
       - key: TEST_DEPLOYMENT
         value: 'true'
       - key: ENABLE_LEGACY_WORKSPACE
@@ -71,6 +79,82 @@ services:
         value: 'true'
       - key: DEFAULT_FROM_EMAIL
         sync: false
+  - type: keyvalue
+    name: scantoforms-redis
+    plan: 256mb
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+  - type: worker
+    name: scantoforms-ocr
+    runtime: docker
+    plan: 2c-4g
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    maxShutdownDelaySeconds: 300
+    envVars:
+      - key: RENDER_TARGET
+        value: ocr-production
+      - key: OCR_ENGINE
+        value: auto
+      - key: PADDLEOCR_DEVICE
+        value: cpu
+      - key: PADDLE_PDX_CACHE_HOME
+        value: /home/appuser/.paddlex
+      - key: DJANGO_SECRET_KEY
+        fromService:
+          type: web
+          name: scantoforms-api
+          envVarKey: DJANGO_SECRET_KEY
+      - key: DJANGO_DEBUG
+        value: 'false'
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: scantoforms-api
+          envVarKey: DATABASE_URL
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: scantoforms-redis
+          property: connectionString
+      - key: PROCESSING_MODE
+        value: celery
+      - key: CELERY_TASK_ALWAYS_EAGER
+        value: 'false'
+      - key: TEST_DEPLOYMENT
+        value: 'true'
+      - key: ENABLE_LEGACY_WORKSPACE
+        value: 'false'
+      - key: ENABLE_PAYSTACK
+        value: 'false'
+      - key: USE_S3_STORAGE
+        value: 'true'
+      - key: AWS_STORAGE_BUCKET_NAME
+        fromService:
+          type: web
+          name: scantoforms-api
+          envVarKey: AWS_STORAGE_BUCKET_NAME
+      - key: AWS_ACCESS_KEY_ID
+        fromService:
+          type: web
+          name: scantoforms-api
+          envVarKey: AWS_ACCESS_KEY_ID
+      - key: AWS_SECRET_ACCESS_KEY
+        fromService:
+          type: web
+          name: scantoforms-api
+          envVarKey: AWS_SECRET_ACCESS_KEY
+      - key: AWS_S3_REGION_NAME
+        fromService:
+          type: web
+          name: scantoforms-api
+          envVarKey: AWS_S3_REGION_NAME
+      - key: AWS_S3_ENDPOINT_URL
+        fromService:
+          type: web
+          name: scantoforms-api
+          envVarKey: AWS_S3_ENDPOINT_URL
   - type: web
     name: scantoforms-web
     runtime: node
