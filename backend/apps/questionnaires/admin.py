@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from apps.core.admin import InspectOnlyAdmin
+
 from .models import (
     Answer,
     Question,
@@ -25,7 +27,7 @@ class TemplatePageInline(admin.TabularInline):
 
 
 @admin.register(Question)
-class QuestionAdmin(admin.ModelAdmin):
+class QuestionAdmin(InspectOnlyAdmin):
     list_display = ("key", "text", "type", "position", "version")
     list_filter = ("type", "required")
     search_fields = ("text", "key")
@@ -33,29 +35,29 @@ class QuestionAdmin(admin.ModelAdmin):
 
 
 @admin.register(Questionnaire)
-class QuestionnaireAdmin(admin.ModelAdmin):
+class QuestionnaireAdmin(InspectOnlyAdmin):
     list_display = ("title", "owner", "status", "created_at")
     list_filter = ("status", "created_at")
     search_fields = ("title", "owner__email")
 
 
 @admin.register(QuestionnaireVersion)
-class QuestionnaireVersionAdmin(admin.ModelAdmin):
+class QuestionnaireVersionAdmin(InspectOnlyAdmin):
     list_display = ("questionnaire", "version_number", "expected_page_count", "parse_status")
     inlines = (TemplatePageInline,)
 
 
 @admin.register(ResponseBatch)
-class ResponseBatchAdmin(admin.ModelAdmin):
+class ResponseBatchAdmin(InspectOnlyAdmin):
     list_display = ("name", "owner", "questionnaire_version", "status", "created_at")
     list_filter = ("status", "created_at")
 
 
 @admin.register(Response)
-class ResponseAdmin(admin.ModelAdmin):
+class ResponseAdmin(InspectOnlyAdmin):
     list_display = ("respondent_reference", "sequence", "batch", "status", "expected_page_count", "created_at")
     list_filter = ("status", "created_at")
     search_fields = ("respondent_reference", "batch__name", "batch__owner__email")
 
 
-admin.site.register(Answer)
+admin.site.register(Answer, InspectOnlyAdmin)

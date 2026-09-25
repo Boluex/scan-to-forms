@@ -59,3 +59,32 @@ def api_client():
     from rest_framework.test import APIClient
 
     return APIClient()
+
+
+@pytest.mark.django_db
+def test_logout_blacklists_only_own_refresh(client, user, other_user):
+    from rest_framework.test import APIClient
+    from rest_framework_simplejwt.tokens import RefreshToken
+    foreign = str(RefreshToken.for_user(other_user))
+    assert client.post(reverse('logout'), {'refresh': foreign}, format='json').status_code == 403
+    own = str(RefreshToken.for_user(user))
+    assert client.post(reverse('logout'), {'refresh': own}, format='json').status_code == 204
+    assert APIClient().post(reverse('token-refresh'), {'refresh': own}, format='json').status_code == 401
+    assert APIClient().post(reverse('token-refresh'), {'refresh': foreign}, format='json').status_code == 200
+
+
+@pytest.mark.django_db
+def test_password_reset_link_and_old_token_revocation(user):
+    from urllib.parse import parse_qs, urlparse
+
+    from rest_framework.test import APIClient
+    anonymous = APIClient()
+    login = anonymous.post(reverse('login'), {'email': user.email, 'password': 'StrongPassphrase42!'}, format='json')
+    assert anonymous.post(reverse('password-reset'), {'email': user.email}, format='json').status_code == 200
+    link = mail.outbox[-1].body
+    assert '/reset-password?' in link
+    params = {k: v[0] for k, v in parse_qs(urlparse(link).query).items()}
+    result = anonymous.post(reverse('password-reset-confirm'), {**params, 'password': 'Replacement-Passphrase-44821!'}, format='json')
+    assert result.status_code == 200
+    anonymous.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+    assert anonymous.get(reverse('me')).status_code == 401

@@ -24,7 +24,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
       });
       setTokens(tokens.access, tokens.refresh);
-      router.replace("/dashboard");
+      router.replace("/orders");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to log in.");
     } finally {
@@ -45,10 +45,10 @@ export default function LoginPage() {
             <div className="field"><label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete="current-password" required /></div>
             <button className="btn btn-primary btn-large auth-submit" disabled={busy}>{busy ? "Signing in…" : "Log in"}</button>
           </form>
-          <p className="auth-switch">New here? <Link href="/register">Create a free account</Link></p>
+          <p><Link href="/forgot-password">Forgot your password?</Link></p><p className="auth-switch">New here? <Link href="/register">Create a free account</Link></p>
         </div>
       </section>
-      <aside className="auth-side"><div className="auth-quote"><ShieldCheck size={34} /><blockquote>“The final dataset is still yours. AI simply removes the repetitive work.”</blockquote><p>Private uploads · Local OCR · Human verification</p></div></aside>
+      <aside className="auth-side"><div className="auth-quote"><ShieldCheck size={34} /><blockquote>Your questionnaires. Reviewed responses. An Apps Script for your form.</blockquote><p>Private uploads · Human review · Controlled beta</p></div></aside>
     </main>
   );
 }

@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.core.access import can_access
+from apps.core.access import can_access, owned
 from apps.questionnaires.models import Response
 
 from .models import DocumentPage, ExtractionResult, OCRJob, OCRResult, UploadedDocument
@@ -106,7 +106,7 @@ class ResponsePageUpdateSerializer(serializers.ModelSerializer):
         target = self.instance.response
         if response:
             try:
-                target = Response.objects.get(pk=response, batch__owner=self.context["request"].user)
+                target = owned(Response.objects.all(), self.context["request"].user, "batch__owner").get(pk=response)
             except (Response.DoesNotExist, DjangoValidationError, ValueError) as exc:
                 raise serializers.ValidationError("Response not found.") from exc
         if value is None or value < 1 or value > target.expected_page_count:

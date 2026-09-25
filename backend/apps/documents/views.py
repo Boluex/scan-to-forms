@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from apps.billing.services import reserve_pages
 from apps.core.access import WorkspacePermission, owned
 from apps.core.models import record_audit
+from apps.core.throttles import WorkspaceUserThrottle
 from apps.questionnaires.integrity import invalidate_response
 from apps.questionnaires.models import Response as QuestionnaireResponse
 
@@ -38,7 +39,8 @@ class UploadedDocumentViewSet(
 ):
     permission_classes = (WorkspacePermission,)
     serializer_class = UploadedDocumentSerializer
-    throttle_classes = (UploadThrottle,)
+    def get_throttles(self):
+        return [UploadThrottle()] if self.action == "create" else [WorkspaceUserThrottle()]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -109,6 +111,7 @@ class UploadedDocumentViewSet(
         document.pages.update(processing_status=DocumentPage.ProcessingStatus.PENDING)
         if document.response_id:
             response = document.response
+            invalidate_response(response)
             response.status = QuestionnaireResponse.Status.PROCESSING
             response.confirmed_at = None
             response.reviewed_by = None

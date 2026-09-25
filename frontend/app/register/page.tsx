@@ -33,7 +33,7 @@ export default function RegisterPage() {
         method: "POST", auth: false, body: JSON.stringify({ email: form.get("email"), password }),
       });
       setTokens(tokens.access, tokens.refresh);
-      router.replace("/dashboard");
+      router.replace("/orders");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create your account.");
     } finally {
@@ -47,7 +47,7 @@ export default function RegisterPage() {
         <Link className="brand" href="/"><span className="brand-mark"><ScanLine size={20} /></span> ScanToForms</Link>
         <div className="auth-form-wrap">
           <h1>Start scanning.</h1>
-          <p>Create your free research workspace. No card and no paid AI account required.</p>
+          <p>Create your free research workspace. Track your orders and securely retrieve reviewed results.</p>
           <form className="form-stack" onSubmit={submit}>
             {error && <div className="form-error" role="alert">{error}</div>}
             <div className="field"><label htmlFor="name">Full name</label><input id="name" name="name" autoComplete="name" required /></div>

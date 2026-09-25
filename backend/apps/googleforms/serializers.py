@@ -13,8 +13,12 @@ FORM_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,180}$")
 def normalize_form_id(value):
     value = value.strip()
     if value.startswith(("http://", "https://")):
-        parsed = urlparse(value)
-        if parsed.scheme != "https" or parsed.hostname != "docs.google.com" or parsed.username or parsed.password or parsed.port:
+        try:
+            parsed = urlparse(value)
+            port = parsed.port
+        except ValueError as exc:
+            raise serializers.ValidationError("The Google Form URL is malformed.") from exc
+        if parsed.scheme != "https" or parsed.hostname != "docs.google.com" or parsed.username or parsed.password or port:
             raise serializers.ValidationError("Use an HTTPS Google Form edit URL at docs.google.com, or its edit Form ID.")
         match = re.fullmatch(r"/forms/d/([A-Za-z0-9_-]{20,180})(?:/edit)?/?", parsed.path)
         if not match:

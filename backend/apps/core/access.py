@@ -15,6 +15,7 @@ class WorkspacePermission(BasePermission):
     message = "Use the orders workspace. This tool is available to operators only."
 
     def has_permission(self, request, view):
-        return bool(request.user.is_authenticated and (
-            request.user.is_staff or getattr(settings, "ENABLE_LEGACY_WORKSPACE", False)
-        ))
+        return bool(
+            request.user.is_authenticated
+            and (request.user.is_staff or getattr(settings, "ENABLE_LEGACY_WORKSPACE", False))
+        )

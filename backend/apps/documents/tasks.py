@@ -6,6 +6,7 @@ from pathlib import Path
 from celery import shared_task
 from django.conf import settings
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from apps.notifications.models import Notification
@@ -56,8 +57,10 @@ def process_document(self, job_id):
     if document.order_id:
         from apps.orders.services import document_started
         document_started(document)
-    if job.status == OCRJob.Status.PROCESSING:
+    claimed = OCRJob.objects.filter(pk=job.pk, status__in=[OCRJob.Status.QUEUED, OCRJob.Status.FAILED]).update(status=OCRJob.Status.PROCESSING, started_at=timezone.now(), attempts=F('attempts') + 1)
+    if not claimed:
         return str(document.id)
+    job.refresh_from_db()
     if document.document_type == UploadedDocument.Type.RESPONSE and not document.response_id:
         document.response = create_response(document.batch)
         document.save(update_fields=("response", "updated_at"))
@@ -66,7 +69,6 @@ def process_document(self, job_id):
     response_id = document.response_id
     job.status = OCRJob.Status.PROCESSING
     job.started_at = timezone.now()
-    job.attempts += 1
     job.error_code = ""
     job.error_message = ""
     job.save(update_fields=("status", "started_at", "attempts", "error_code", "error_message", "updated_at"))
@@ -233,7 +235,7 @@ def process_document(self, job_id):
         document.save(update_fields=("status", "failure_reason", "updated_at"))
         if response_id:
             refresh_response_validation(response_id)
-            response, aggregated = aggregate_response_answers(response_id)
+            response, aggregated = aggregate_response_answers(response_id, force=True)
             update_batch_status(response.batch_id)
             if succeeded and aggregated:
                 Notification.objects.create(

@@ -116,6 +116,8 @@ class ResponseViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
                 "pages__ocr_results",
             )
         )
+        if self.request.query_params.get("sequence"):
+            queryset = queryset.filter(sequence=self.request.query_params["sequence"])
         batch_id = self.request.query_params.get("batch")
         return queryset.filter(batch_id=batch_id) if batch_id else queryset
 
@@ -124,8 +126,9 @@ class ResponseViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
         record_audit(actor=self.request.user, action="response.created", target=response, request=self.request)
 
     @decorators.action(detail=True, methods=("post",))
+    @transaction.atomic
     def confirm(self, request, pk=None):
-        response = self.get_object()
+        response = Response.objects.select_for_update().get(pk=self.get_object().pk)
         errors = final_errors(response, require_confirmation=False)
         if errors:
             return APIResponse({"detail": errors}, status=status.HTTP_409_CONFLICT)
@@ -150,6 +153,7 @@ class AnswerViewSet(viewsets.GenericViewSet):
     @transaction.atomic
     def partial_update(self, request, pk=None):
         answer = self.get_object()
+        Response.objects.select_for_update().get(pk=answer.response_id)
         serializer = self.get_serializer(answer, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

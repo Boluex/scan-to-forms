@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import transaction
 from django.urls import reverse
 from rest_framework import generics, permissions, status, throttling
 from rest_framework.response import Response
@@ -44,6 +45,7 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = (permissions.AllowAny,)
     throttle_classes = (AuthThrottle,)
 
+    @transaction.atomic
     def perform_create(self, serializer):
         user = serializer.save()
         verification, raw_token = EmailVerificationToken.issue(user)

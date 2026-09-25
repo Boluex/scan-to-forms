@@ -4,6 +4,7 @@ from pathlib import Path
 from django.conf import settings
 from PIL import Image, UnidentifiedImageError
 from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 from rest_framework import serializers
 
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
@@ -37,7 +38,7 @@ def inspect_upload(upload):
                 image.verify()
             page_count = 1
             content_type = "image/jpeg" if extension in {".jpg", ".jpeg"} else "image/png"
-    except (UnidentifiedImageError, OSError, ValueError) as exc:
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, PdfReadError, Image.DecompressionBombError) as exc:
         raise serializers.ValidationError("The uploaded document is corrupt or unsupported.") from exc
     finally:
         upload.seek(0)

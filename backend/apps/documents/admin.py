@@ -1,10 +1,12 @@
 from django.contrib import admin
 
+from apps.core.admin import InspectOnlyAdmin
+
 from .models import DocumentPage, ExtractionResult, OCRJob, OCRRegion, OCRResult, UploadedDocument
 
 
 @admin.register(UploadedDocument)
-class UploadedDocumentAdmin(admin.ModelAdmin):
+class UploadedDocumentAdmin(InspectOnlyAdmin):
     list_display = ("original_filename", "owner", "document_type", "status", "page_count", "created_at")
     list_filter = ("document_type", "status", "created_at")
     search_fields = ("original_filename", "owner__email", "sha256")
@@ -12,14 +14,14 @@ class UploadedDocumentAdmin(admin.ModelAdmin):
 
 
 @admin.register(OCRJob)
-class OCRJobAdmin(admin.ModelAdmin):
+class OCRJobAdmin(InspectOnlyAdmin):
     list_display = ("document", "status", "engine", "attempts", "processing_ms", "created_at")
     list_filter = ("status", "engine", "created_at")
     readonly_fields = ("started_at", "finished_at", "processing_ms", "error_code", "error_message")
 
 
 @admin.register(DocumentPage)
-class DocumentPageAdmin(admin.ModelAdmin):
+class DocumentPageAdmin(InspectOnlyAdmin):
     list_display = (
         "document",
         "response",
@@ -31,6 +33,6 @@ class DocumentPageAdmin(admin.ModelAdmin):
     list_filter = ("classification_method", "processing_status")
 
 
-admin.site.register(OCRResult)
-admin.site.register(OCRRegion)
-admin.site.register(ExtractionResult)
+admin.site.register(OCRResult, InspectOnlyAdmin)
+admin.site.register(OCRRegion, InspectOnlyAdmin)
+admin.site.register(ExtractionResult, InspectOnlyAdmin)

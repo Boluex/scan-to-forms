@@ -23,7 +23,7 @@ def _paid_at(value):
 
 @transaction.atomic
 def fulfill_known_transaction(payment, data, *, request=None):
-    payment = PaymentTransaction.objects.select_for_update().select_related("user", "plan").get(pk=payment.pk)
+    payment = PaymentTransaction.objects.select_for_update(of=("self",)).select_related("user", "plan").get(pk=payment.pk)
     if payment.status == PaymentTransaction.Status.SUCCESS:
         return payment
     if data.get("status") != "success":

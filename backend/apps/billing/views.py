@@ -29,7 +29,14 @@ from .serializers import (
 from .services import entitlements_for, usage_for
 
 
-class PlanListView(generics.ListAPIView):
+class LegacyBillingGate:
+    def initial(self, request, *args, **kwargs):
+        if not settings.ENABLE_PAYSTACK:
+            raise PermissionDenied("Legacy billing is disabled. Use orders and manual bank transfer.")
+        return super().initial(request, *args, **kwargs)
+
+
+class PlanListView(LegacyBillingGate, generics.ListAPIView):
     serializer_class = PlanSerializer
     permission_classes = (permissions.AllowAny,)
     authentication_classes = ()
@@ -39,7 +46,7 @@ class PlanListView(generics.ListAPIView):
         return Plan.objects.filter(is_public=True)
 
 
-class BillingSummaryView(views.APIView):
+class BillingSummaryView(LegacyBillingGate, views.APIView):
     @extend_schema(
         responses=inline_serializer(
             name="BillingSummaryResponse",
@@ -84,7 +91,7 @@ class BillingSummaryView(views.APIView):
         )
 
 
-class CheckoutView(generics.GenericAPIView):
+class CheckoutView(LegacyBillingGate, generics.GenericAPIView):
     serializer_class = CheckoutSerializer
 
     @transaction.atomic
@@ -135,7 +142,7 @@ class CheckoutView(generics.GenericAPIView):
         return Response(PaymentTransactionSerializer(payment).data, status=status.HTTP_201_CREATED)
 
 
-class VerifyPaymentView(generics.GenericAPIView):
+class VerifyPaymentView(LegacyBillingGate, generics.GenericAPIView):
     serializer_class = VerifyPaymentSerializer
 
     def post(self, request):
@@ -153,7 +160,7 @@ class VerifyPaymentView(generics.GenericAPIView):
         return Response(PaymentTransactionSerializer(payment).data)
 
 
-class PaymentHistoryView(generics.ListAPIView):
+class PaymentHistoryView(LegacyBillingGate, generics.ListAPIView):
     serializer_class = PaymentTransactionSerializer
 
     def get_queryset(self):
@@ -162,7 +169,7 @@ class PaymentHistoryView(generics.ListAPIView):
         return PaymentTransaction.objects.filter(user=self.request.user).select_related("plan")
 
 
-class SubscriptionManageView(views.APIView):
+class SubscriptionManageView(LegacyBillingGate, views.APIView):
     @extend_schema(
         request=None,
         responses=inline_serializer(
@@ -184,7 +191,7 @@ class SubscriptionManageView(views.APIView):
         return Response({"url": data.get("link")})
 
 
-class PaystackWebhookView(views.APIView):
+class PaystackWebhookView(LegacyBillingGate, views.APIView):
     authentication_classes = ()
     permission_classes = (permissions.AllowAny,)
     throttle_classes = ()

@@ -6,6 +6,7 @@ export type Paginated<T> = {
 };
 
 export type User = {
+  is_staff: boolean;
   id: string;
   email: string;
   name: string;
@@ -79,6 +80,7 @@ export type Question = {
   type: string;
   required: boolean;
   template_page_number: number | null;
+  validation_rules: Record<string, unknown>;
   options: Option[];
 };
 
