@@ -8,7 +8,7 @@ This report separates previously completed local validation from source inspecti
 
 ## 1. Render services actually deployed
 
-**None deployed by this session. Existing account resources are unknown.** No authenticated Render integration, Render CLI configuration, Render credential, workspace ID, or deployment URL was available. The available Render integration was suggested for connection; it was not connected at the time of this report. No resource charges were incurred here.
+**No Render deployment was observed or verified. Existing account resources are unknown.** No authenticated Render integration, Render CLI configuration, Render credential, workspace ID, or deployment URL was available. The available Render integration was suggested for connection; it was not connected at the time of this report. No direct provisioning operation was issued. Existing account-side automation or billing could not be inspected.
 
 The original blueprint described only an API and frontend in manual-transcription mode. The prepared blueprint now describes:
 
@@ -21,7 +21,7 @@ The original blueprint described only an API and frontend in manual-transcriptio
 | PostgreSQL | External `DATABASE_URL` supplied to API and worker | Not provisioned by blueprint |
 | Private object storage | External shared S3-compatible bucket | Not provisioned by blueprint |
 
-Candidate plans must be checked against the selected workspace's availability and budget. The repository branch is `main`. Initial remote inspection returned `8704599cea521e39943f762c052b806315de1e37`, the pre-refactor baseline; the focused MVP commits were local only. A shorter parallel query timed out, but the original query completed. Publishing the current MVP is a prerequisite to deploying from that branch. A Render deploy must record its actual commit SHA, not assume it contains local changes.
+Candidate plans must be checked against the selected workspace's availability and budget. The repository branch is `main`. Initial remote inspection returned `8704599cea521e39943f762c052b806315de1e37`, the pre-refactor baseline; the focused MVP commits were local only. A shorter parallel query timed out, but the original query completed. A subsequent normal push **succeeded**, publishing the MVP and deployment preparation through `5cc0246` to `https://github.com/Boluex/scan-to-forms.git`. No force push was used. This resolves the stale remote source; it does not establish that Render built or accepted it. A Render deploy must record its actual commit SHA, including any later documentation checkpoint, rather than assume a push implies deployment.
 
 ## 2. Exact environment configuration categories
 
@@ -166,6 +166,7 @@ No models, migrations, business logic, UI, product scope or credentials were cha
 | Blueprint cross-service environment references and real queue/private storage settings | PASS configuration checks |
 | Main Dockerfile shared base-stage build | PASS using cached dependencies |
 | `git diff --check` | PASS |
+| Publish current MVP/deployment source to GitHub `main` | PASS; normal push through `5cc0246` |
 | Full new OCR worker image build/runtime | NOT RUN; local resources insufficient for a responsible heavy build |
 | Buildx `--check` | UNAVAILABLE; unsupported by installed CLI |
 | Live deployment and acceptance tests | NOT RUN; external access/configuration missing |
@@ -174,7 +175,7 @@ Previous validation remains documented in [MVP_IMPLEMENTATION_REPORT.md](MVP_IMP
 
 ## 25. Remaining blockers
 
-1. Connect Render and identify the intended workspace/project and affordable API/worker/queue resources. Confirm the remote source commit can be deployed.
+1. Connect Render and identify the intended workspace/project and affordable API/worker/queue resources. Deploy the published current MVP commit, not the original baseline.
 2. Supply a persistent PostgreSQL database and private shared S3 bucket, with usable least-privilege credentials in Render. Verify actual privacy and persistence.
 3. Configure bank details, positive service rates, exact deployment origins/API URL and working SMTP with an inbox for delivery checks.
 4. Build/deploy the actual worker and services, then complete real queued OCR and every deployment/security/persistence acceptance step.
