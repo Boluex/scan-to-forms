@@ -1,115 +1,112 @@
-# ScanToForms controlled beta on Render
+# ScanToForms $0 Render acceptance deployment
 
-This is a two-customer-service, operator-assisted beta. It is **not** a 480-page OCR production deployment. No Render resources have been created from this workspace. The current blueprint is prepared for real queued OCR acceptance; it has not passed live acceptance. See [the live acceptance report](RENDER_LIVE_ACCEPTANCE_REPORT.md) for evidence and blockers.
+This runbook supersedes the earlier paid-worker preparation. The owner has authorized **free resources only**. Do not upgrade a plan, attach a paid disk, or create a paid background worker without asking first. This is a disposable workflow test, not an accepted customer-data deployment. See [the live acceptance report](RENDER_LIVE_ACCEPTANCE_REPORT.md).
 
-## Deployment for the real-OCR acceptance test
+## Exact deployment scope
 
-`render.yaml` defines a Node 22 Next.js web service, a Django Docker API built from `backend/Dockerfile.render`, a separate Celery OCR worker, and private Render Key Value. Supply PostgreSQL, a **private** S3-compatible bucket, and SMTP. The API retains its existing paid `starter` plan. The worker's `2c-4g` plan is an initial measurement candidate, not proven sufficient capacity. The queue uses paid `256mb`, `noeviction`, and `journal-snapshot` persistence. The frontend can be free for controlled tests. Review the workspace's actual quoted cost and resource availability before creation. No resources have been purchased or deployed here.
+`render.yaml` declares project **ScanToForms Beta**, environment **Beta**:
 
-Both API and worker use `PROCESSING_MODE=celery` and `CELERY_TASK_ALWAYS_EAGER=false`. The worker references the API's database and private storage configuration, and both reference the same queue. Run one worker at concurrency 1. The API startup applies migrations; confirm migration completion before submitting any work. Keep services and database in the same Render region. This blueprint does not provision PostgreSQL or an object-storage bucket.
-
-Manual mode remains available in the application for real human transcription, but does **not** satisfy this acceptance test. Do not change to manual mode or eager tasks to report the queue/OCR path as passing. Synthetic fulfillment still uses the existing deterministic generator plus operator inspection; it does not call an LLM.
-
-Render references: [Blueprint schema](https://render.com/docs/blueprint-spec), [free-tier restrictions](https://render.com/docs/free), [persistent disks](https://render.com/docs/disks), [background workers](https://render.com/docs/background-workers). Review current provider limits before choosing plans.
-
-## Setup
-
-1. Create PostgreSQL with a suitable lifetime and backups. Supply its connection URL as `DATABASE_URL`; use TLS as required by the provider. Do not use the local SQLite fallback remotely. Free Render PostgreSQL expires after 30 days and is only suitable for disposable tests.
-2. Create a private S3-compatible bucket. Keep public access disabled; give the service credentials only the required bucket read/write/delete permissions. Supply bucket, access key, secret key, region, and optional endpoint URL. API downloads remain authenticated and owner scoped. Do not expose `/media/` through a public proxy.
-3. Create the blueprint. Enter the API hostname in `DJANGO_ALLOWED_HOSTS` without a scheme. Set `FRONTEND_URL` and `DJANGO_CORS_ALLOWED_ORIGINS` to the exact HTTPS frontend origin. `DJANGO_CSRF_TRUSTED_ORIGINS` should include the HTTPS API origin for Django Admin and any approved browser origin. Keep `DJANGO_TRUST_PROXY=true` behind Render's managed proxy only.
-4. Set frontend `NEXT_PUBLIC_API_URL=https://YOUR-API.onrender.com/api/v1` **before building**. Rebuild after changing it. This is a public URL, never a secret.
-5. Set the bank account name, number, and bank name. Set positive NGN per-respondent/per-response prices. Pricing is calculated on the server and snapshotted on the order; later rate changes do not change existing orders.
-6. Configure SMTP, TLS, and a verified sender. Send actual registration and reset emails to a test address. The console backend is for local tests only. If testing an entirely free API, standard SMTP will not work; do not invite real customers until account recovery delivery works on a supported service plan.
-7. The API start script runs migrations once per instance and collects static assets. Keep one API instance initially. For multiple instances use a single pre-deploy migration step and `RUN_MIGRATIONS=false`. Never reset the database.
-8. Run `python manage.py createsuperuser` in a secure Render shell. No default admin credentials are shipped. Log into Django Admin and `/orders` with this operator account.
-9. Check `/health/`, then complete the acceptance steps below. It checks database connectivity, not worker/storage/email readiness.
-
-## Exact environment-variable checklist
-
-These names match `backend/config/settings.py`. Bare `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, and `CSRF_TRUSTED_ORIGINS` environment variables are **not** read by this app: use the `DJANGO_` names below. Configure secrets in Render, never in Git or `NEXT_PUBLIC_*`. Values in angle brackets are placeholders, not deployable values.
-
-| Variable | Service | Required value / source |
+| Resource | Plan | Purpose |
 | --- | --- | --- |
-| `DJANGO_SECRET_KEY` | API → worker reference | Unique generated secret; keep stable across redeploys |
-| `DJANGO_DEBUG` | API + worker | `false` |
-| `DJANGO_ALLOWED_HOSTS` | API | `<actual-api-host>.onrender.com` (host only, comma-separated if needed; no wildcard) |
-| `DJANGO_TRUST_PROXY` | API | `true` behind Render's managed proxy |
-| `DJANGO_CORS_ALLOWED_ORIGINS` | API | `https://<actual-frontend-host>.onrender.com` (no trailing slash) |
+| `scantoforms-web` | free | Node 22 / Next.js frontend |
+| `scantoforms-api` | free | Existing API-only production Docker image |
+| `scantoforms-beta-db` | free | PostgreSQL 16, permanent-record source of truth during the test database's lifetime |
+| `scantoforms-redis` | free | Private queue with `noeviction`, persistence off |
+| Celery OCR worker | NOT provisioned | BLOCKED BY FREE INFRASTRUCTURE |
+| Shared persistent upload storage | NOT provisioned | BLOCKED BY FREE INFRASTRUCTURE |
+
+All declared plans are explicitly `free`. If the workspace has exhausted its free allocation or a resource is unavailable, stop and report that; do not select a paid fallback. The API still publishes to Redis and the worker code remains separate. `PROCESSING_MODE=celery` and eager execution is off. Do not run Celery inside the API, fake OCR, or claim a manual/local run passed on Render.
+
+Free services have cold starts, quotas and ephemeral filesystems. Free PostgreSQL expires after 30 days; record its actual expiration date and export any test records needed before expiry. Free Redis can lose queued tasks. PostgreSQL rows remain the application source of truth, but an expiring test database is not a production durability promise. Review [Render free-service limits](https://render.com/docs/free) and [the Blueprint reference](https://render.com/docs/blueprint-spec) at deployment.
+
+## Before creating resources
+
+1. Connect the Render integration and use only the authorized workspace. Inspect existing services, free quotas and any existing Blueprint before syncing; do not accidentally modify an unrelated project. The earlier paid blueprint was never provisioned by this workspace.
+2. Deploy the current GitHub `main` revision, not the pre-refactor baseline `8704599` or the superseded paid-worker blueprint. Record the exact deployed commit and service URLs in the report.
+3. Enter the secrets directly in Render: Resend key, sender, bank details and generated Django secret. Never put them in chat, source control, or browser-visible environment variables.
+4. Confirm the plan review shows only free resources. Use the existing authorized workspace's project if already created; otherwise use the Blueprint's ScanToForms Beta project.
+5. Keep only disposable, non-sensitive files and test identities on this deployment. Do not collect real money for these test orders. External private persistent storage is required before students entrust actual questionnaires to the service.
+
+## Exact environment checklist
+
+These are the names the application reads. Generic `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, and `CSRF_TRUSTED_ORIGINS` are not environment aliases: use the `DJANGO_` names.
+
+| Variable | Service | Value / source |
+| --- | --- | --- |
+| `DJANGO_SECRET_KEY` | API | Blueprint-generated unique secret, stable across restarts |
+| `DJANGO_DEBUG` | API | `false` |
+| `DJANGO_ALLOWED_HOSTS` | API | Actual API hostname, no scheme/wildcard; comma-separated if needed |
+| `DJANGO_TRUST_PROXY` | API | `true` behind Render's managed HTTPS proxy |
+| `DJANGO_CORS_ALLOWED_ORIGINS` | API | Exact HTTPS frontend origin, no trailing slash |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | API | Exact HTTPS API/admin and frontend origins, comma-separated |
-| `FRONTEND_URL` | API | Exact HTTPS frontend origin for account emails |
-| `DATABASE_URL` | API → worker reference | Same persistent PostgreSQL database URL; provider-required TLS parameters; never SQLite |
-| `REDIS_URL` | API + worker | Blueprint reference to private `scantoforms-redis` connection string |
-| `PROCESSING_MODE` | API + worker | `celery` |
-| `CELERY_TASK_ALWAYS_EAGER` | API + worker | `false` |
-| `TEST_DEPLOYMENT` | API + worker | `true`; labels the deployment, does not mock OCR |
-| `ENABLE_LEGACY_WORKSPACE` | API + worker | `false` |
-| `ENABLE_PAYSTACK` | API + worker | `false`; no Paystack keys needed |
-| `MANUAL_BANK_TRANSFER_ENABLED` | API | `true` |
-| `BANK_NAME` | API | Actual business bank name |
-| `BANK_ACCOUNT_NAME` | API | Actual account holder |
-| `BANK_ACCOUNT_NUMBER` | API | Actual bank account number; customer-visible payment instruction |
-| `DIGITIZATION_PRICE_PER_RESPONDENT_NGN` | API | Business-approved positive decimal NGN rate |
-| `SYNTHETIC_PRICE_PER_RESPONSE_NGN` | API | Business-approved positive decimal NGN rate |
-| `USE_S3_STORAGE` | API + worker | `true` |
-| `AWS_STORAGE_BUCKET_NAME` | API → worker reference | Same private bucket |
-| `AWS_ACCESS_KEY_ID` | API → worker reference | Scoped storage access key |
-| `AWS_SECRET_ACCESS_KEY` | API → worker reference | Scoped storage secret |
-| `AWS_S3_REGION_NAME` | API → worker reference | Bucket provider's region |
-| `AWS_S3_ENDPOINT_URL` | API → worker reference | HTTPS endpoint for S3-compatible providers; empty for standard AWS S3 |
-| `EMAIL_BACKEND` | API | `django.core.mail.backends.smtp.EmailBackend` |
-| `EMAIL_HOST` | API | Real SMTP hostname |
-| `EMAIL_PORT` | API | `587` for this STARTTLS configuration |
-| `EMAIL_HOST_USER` | API | SMTP login |
-| `EMAIL_HOST_PASSWORD` | API | SMTP secret |
-| `EMAIL_USE_TLS` | API | `true` |
-| `DEFAULT_FROM_EMAIL` | API | Verified sender accepted by the provider |
-| `ADMIN_CONTACT_EMAIL` | API, optional | Monitored support address |
-| `RENDER_TARGET` | Worker build | `ocr-production`; do not set this on the API |
-| `OCR_ENGINE` | Worker | `auto` for PaddleOCR with real Tesseract fallback; record the engine actually used |
-| `PADDLEOCR_DEVICE` | Worker | `cpu` |
-| `PADDLE_PDX_CACHE_HOME` | Worker | `/home/appuser/.paddlex`; replaceable model cache, not customer storage |
+| `FRONTEND_URL` | API | Actual HTTPS frontend origin for reset links |
+| `DATABASE_URL` | API | Blueprint reference to free PostgreSQL's private connection string |
+| `REDIS_URL` | API | Blueprint reference to free Key Value's private connection string |
+| `PROCESSING_MODE` | API | `celery`; there is no deployed worker |
+| `CELERY_TASK_ALWAYS_EAGER` | API | `false` |
+| `TEST_DEPLOYMENT` | API | `true`; does not fabricate data |
+| `ENABLE_LEGACY_WORKSPACE` | API | `false` |
+| `ENABLE_PAYSTACK` | API | `false` |
+| `MANUAL_BANK_TRANSFER_ENABLED` | API | `true`; test the existing claim/staff-verification workflow |
+| `BANK_NAME` | API | Owner enters directly in Render |
+| `BANK_ACCOUNT_NAME` | API | Owner enters directly in Render |
+| `BANK_ACCOUNT_NUMBER` | API | Owner enters directly in Render |
+| `DIGITIZATION_PRICE_PER_RESPONDENT_NGN` | API | `500` initial beta rate, configurable |
+| `SYNTHETIC_PRICE_PER_RESPONSE_NGN` | API | `1000` initial beta rate, configurable |
+| `USE_S3_STORAGE` | API | `false` for disposable testing only; no bucket exists |
+| `MEDIA_ROOT` | API | `/app/media`, ephemeral; never public-routed |
+| `EMAIL_BACKEND` | API | `apps.core.email.ResendEmailBackend` |
+| `RESEND_API_KEY` | API | Owner supplies secret in Render; no invented key |
+| `DEFAULT_FROM_EMAIL` | API | Sender permitted by Resend, e.g. an address on the owner's verified domain |
+| `RESEND_TIMEOUT_SECONDS` | API | `15` |
 | `NODE_VERSION` | Frontend | `22` |
-| `NEXT_PUBLIC_API_URL` | Frontend build + runtime | `https://<actual-api-host>.onrender.com/api/v1`; rebuild after changes |
+| `NEXT_PUBLIC_API_URL` | Frontend build/runtime | `https://<actual-api-host>/api/v1` |
+| `NEXT_PUBLIC_DEPLOYMENT_NOTICE` | Frontend build/runtime | Blueprint's visible disposable-test, unavailable-OCR, possible-file-loss and no-real-payment notice |
 
-Optional limits: `MAX_ORDER_RESPONDENTS` (default 1000), `MAX_ORDER_PAGES` (5000), `MAX_SYNTHETIC_RESPONSES` (1000), `MAX_UPLOAD_BYTES` (26214400 per file), `MAX_PDF_PAGES` (100). Defaults are validation limits, **not tested processing capacity**. The first live job is 2 respondents × 4 pages. `WEB_CONCURRENCY` defaults to 1. Render supplies `PORT`; do not override it. `RUN_MIGRATIONS` defaults to `true` for the single API instance. Keep HTTPS redirect enabled (default when debug is off).
+Render supplies `PORT`. The API uses one Gunicorn process by default (`WEB_CONCURRENCY=1`). `RUN_MIGRATIONS` defaults to true; keep one API instance. Optional existing upload/count limits remain validation limits, not measured OCR capacity: `MAX_UPLOAD_BYTES`, `MAX_PDF_PAGES`, `MAX_ORDER_RESPONDENTS`, `MAX_ORDER_PAGES`, `MAX_SYNTHETIC_RESPONSES`. No SMTP, S3, Google OAuth or Paystack secrets are required for this free deployment. Only the API calculates prices; existing orders retain their price snapshot.
 
-Worker references are synchronized by the Blueprint. After changing database/storage credentials, verify both services received the same configuration and restart them safely. Do not print connection strings or secrets into acceptance logs. Worker notifications are database records; SMTP runs in the API's account flow.
+## Resend setup and acceptance
 
-## Worker image, queue and storage checks
+The new Django mail backend posts existing verification/reset messages to `https://api.resend.com/emails` over HTTPS. It has a timeout, requires a provider acknowledgement, and fails rather than reporting a rejected message as sent. It does not add a queue dependency or an email SDK. No SMTP ports are used. A successful API response means accepted by Resend, not proven inbox delivery. [Resend send-email API](https://resend.com/docs/api-reference/emails/send-email).
 
-The main Dockerfile retains its existing named stages and now selects the final stage with a non-secret build argument, `RENDER_TARGET` (default `production`). Render translates service environment variables into Docker build arguments; the worker selects `ocr-production`. Its unchanged command is `celery -A config worker -l info --concurrency 1`. No undocumented Render `--target` setting is required. See [Render's Docker documentation](https://render.com/docs/docker).
+The owner creates a Resend API key and configures `RESEND_API_KEY` securely. For real recipients, verify an owned sending domain using the DNS records provided by Resend, then set `DEFAULT_FROM_EMAIL` to an allowed sender on that domain. Domain ownership/setup is an owner action, not something this repository can invent. [Resend domain verification](https://resend.com/docs/dashboard/domains/introduction).
 
-After the API's migrations finish, verify the worker logs show a connected broker, registered `apps.documents.tasks.process_document` task, and a ready worker. Use an API shell to check `redis.Redis.from_url(settings.CELERY_BROKER_URL).ping()` and `config.celery.app.control.ping(timeout=10)`; a Redis PONG alone does not prove the worker is running. Confirm `/health/` separately: it only executes a database query. Verify `/admin/login/` and its static CSS, the frontend, and authenticated notifications.
+Without a verified domain, Resend's test sender is restricted to the account owner's email address. Do not claim student delivery works from a self-send test; domain verification is needed for arbitrary recipients. [Resend test-domain restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
 
-API and worker cannot share a Render service disk. Their shared bucket is the source of truth: `UploadedDocument.file` uses Django's S3 storage; the worker downloads a source into a temporary local directory for OCR. That local copy is disposable. The application does not mount a public `/media/` route; source downloads use authenticated owner/staff endpoints. `default_acl=None` does **not** make a public bucket private: disable public bucket policies and verify an unsigned object request cannot return file bytes. API/worker credentials must access the same objects. No browser S3 credentials or public bucket URL is needed.
+Live checks: register an allowed address; inspect actual inbox delivery; follow verification; log in; log out; request reset; receive and use reset link; confirm new login and old credential/session rejection. Missing credentials/provider rejection must not be described as delivered mail. Registration is transactional and rolls back on a transport failure. No mail was sent by the mocked transport tests.
 
-Verify a test object's SHA-256 from both API and worker storage reads; record only document IDs and hashes. After all tasks finish, restart/redeploy API and worker and repeat those checks plus customer file download and output retrieval. Records/results live in PostgreSQL; Apps Script is stored in the database and CSV/XLSX are generated from persisted records. Neither a passing health check nor an S3 setting alone proves persistence. No local filesystem fallback is acceptable for this deployment.
+## API, database and admin startup
 
-The worker cache is ephemeral and may download models again after redeploy. Observe cold startup and actual per-job engine, duration, attempts, errors and worker memory. A Tesseract fallback is real OCR but is not evidence that Paddle succeeded. Free Render infrastructure does not provide a paid OCR worker or durable shared uploads; do not combine hidden processes in a free web service. The configured worker's 300-second shutdown grace is shorter than the 600-second task limit: drain work before planned redeploys. Unexpected worker death can leave processing jobs requiring operator recovery; no restart/retry guarantee has been demonstrated.
+The unchanged API entrypoint runs migrations and `collectstatic`, then Gunicorn. Confirm `/health/` returns 200, but remember it checks only a database query. Also verify `/admin/login/` and its CSS, frontend assets, API CORS, authenticated notifications and order requests. Redis PONG proves only broker connectivity; no worker reply is expected in this configuration.
 
-## Acceptance before inviting customers
+Free web services do not provide a Render shell. To create the staff operator, run the existing Django `createsuperuser` management command locally against the test PostgreSQL database using its external connection URL in a protected local environment. Temporarily allow only the operator's public IP in the database's external access list, then remove it after setup. The Blueprint initially blocks all external database access. Never commit the connection URL or account password; do not use test-suite seeded credentials. This uses the existing management command, not a new unauthenticated bootstrap route. No existing/customer database may be reset.
 
-- Register, receive verification email, log in, log out, reset password through a real email, and verify the old password/session is rejected.
-- Create two respondents × four pages. Upload ordered images and phone slots; inspect order completeness. Test rejection of duplicated files and missing pages.
-- Attempt processing/results before payment: blocked. Click I HAVE PAID: still blocked. Independently confirm a test transfer, then verify it using a staff account. Test rejection and resubmission.
-- Prepare the schema, start the paid order, and trace actual job IDs from API → Redis → worker → PostgreSQL OCR results. Inspect every page/grouping, correct answers, approve them, confirm both respondents, map every Google item, prepare the script, and release READY. No manual-mode substitute for this test.
-- Download CSV/XLSX/.GS, copy the code, run previewMapping in a disposable **existing** real Google Form, then startSubmission/continueSubmission/submissionStatus. Verify row count, checkbox/grid/date values and Google item titles. ScanToForms cannot remotely confirm success and must not claim it did.
-- Create a synthetic order from one multi-page blank template. Generate/adjust a paid dataset, inspect every column, release labelled CSV. Google submission is intentionally blocked.
-- Verify notifications and cross-account isolation, including guessed order references and original files.
-- Redeploy/restart the API and verify files and rows still exist. Test storage access denial without authentication and document your backup/restore procedure.
+## Private uploads and persistence
 
-For the separate Google test, use 5–10 known disposable test responses collected on controlled test questionnaires. The eight-page grouping job contains only two respondents and cannot prove five-response submission. Do not pass Bot Lab output through a human-response order to bypass synthetic classification. Record the disposable Form's baseline response count, every mapped title/type, expected values, final count and script status. Run `continueSubmission()` again after completion in the same project and verify no duplicates. Do not restart from a copied new project to test resumability; its state is separate. Record unsupported types individually, including blocked file-upload questions. Text, multiple choice, checkbox and scale need actual execution; generator branches for grids, dates, time, duration and rating are not proof of compatibility.
+Source downloads retain existing authentication and owner/staff checks. Do not publish `/media/` or expose a public file server. Local source files can disappear on spin-down, restart or redeploy; database metadata surviving does not mean the file survived. The configured frontend notice warns users before they upload.
 
-The existing Playwright config starts local disposable services and uses manual mode. Running `npm run test:e2e` does **not** exercise Render. Live testing must target the actual deployment URLs and retain redacted evidence; do not run the local database setup or its seeded credentials against Render.
+Only disposable test files are permitted. Keep originals locally and assume re-upload may be necessary. A controlled restart can demonstrate the limitation, but does not certify persistence even if a particular file happens to survive once. Record the persistence acceptance status as **BLOCKED BY FREE INFRASTRUCTURE**, never PASSED.
 
-## Data and deployment limitations
+A private shared S3-compatible bucket is needed before accepting irreplaceable/customer questionnaires and before a separate worker can read API uploads reliably. No provider or bucket has been added. Cloudflare R2 can be evaluated later; first present its current free-tier terms, required account/billing setup, privacy controls and configuration to the owner. Do not assume an account or silently enable a provider.
 
-Ephemeral filesystem uploads are acceptable only for disposable local/testing data. Do not accept critical customer uploads with `USE_S3_STORAGE=false` on a free Render web instance. Persistent storage and tested recovery are required before a paying customer depends on the service. The blueprint cannot validate bank ownership, SMTP deliverability, object-store permissions, or Google execution; all need live acceptance testing.
+## What can be accepted at $0
 
-The app does not verify Google Form ownership. It accepts standard edit URLs/IDs, rejects forms.gle and published `/d/e/` links, and never requests a Google password. A human checks `previewMapping()` before submitting. Do not restart a completed script casually: separate scripts/projects may submit duplicates.
+Test the landing page, register/login/logout/reset (with Resend), two order forms, beta prices, private disposable uploads, completeness, payment claim, staff-only verification/rejection, audit, notifications and operator inspection. A 2×4 order should cost NGN 1000; a 10-response synthetic request should cost NGN 10000. Those are configured beta totals, not frontend constants. Use explicit test orders without real transfers.
 
-## Repeatable local validation
+Validate User A/User B isolation across orders, questionnaire/document/source endpoints, answers/page movement, exports/scripts and synthetic results. An unpaid request remains locked. Clicking I HAVE PAID must only record PAYMENT_SUBMITTED; customer self-verification must fail.
 
-From the repository root, use `.venv/bin/pytest backend/tests -ra`. Set `TEST_DATABASE_URL` to an **isolated test PostgreSQL database** to run the same suite against PostgreSQL; pytest creates its own `test_...` database. Never aim tests at a customer database. Run Django check/migration checks with `--settings=config.settings_test` if no local services are running.
+The digitization process endpoint can queue a paid job, but it will not be consumed without a worker. Normally leave test orders PAID; if testing dispatch, record the QUEUED job as unexecuted, do not leave an unexplained processing claim. Never mark READY without real reviewed data. Free Redis loss can remove the queued message even when the PostgreSQL job exists.
 
-From `frontend`, run `npm ci`, `npm run lint`, `npm run typecheck`, and `npm run build`. Browser tests use a disposable SQLite database and temporary upload directory, a local API on 8107 and frontend on 3107: `npx playwright install chromium`, then `npm run test:e2e`. Alternatively set `PLAYWRIGHT_CHROME_PATH` to an installed Chrome binary. The test operator credentials exist only in this temporary database. These tests use explicit manual transcription, not simulated OCR. They do not submit to Google or move real money.
+Synthetic request/payment/operator inspection can be tested. Under celery mode, the internal generator also needs a worker. Its queued completion is blocked. Existing attachment/review/result delivery can be tested only with a legitimate completed dataset prepared via an explicitly agreed operator procedure, not invented results or manipulated confirmation flags. Do not silently change processing mode to force fulfillment.
+
+Result pages and Google instructions may be inspected, but final CSV/XLSX/script delivery needs an eligible paid/reviewed result. Separate a UI inspection, a local pass and a real Render end-to-end pass. The existing Playwright script starts local services in manual mode; it does not test Render.
+
+## Real OCR and Google gates
+
+No clean shared-storage path currently exists for a local worker to consume this deployment's ephemeral uploads. A future test-only local Celery worker could use the existing broker/database plus private shared storage, but would need network access controls and reliable object access. That proposal must be explained and agreed before implementation; it would still be **local worker execution**, not a Render worker pass. No tunnel, inline worker or other workaround is implemented now.
+
+Keep Google acceptance **TESTING REQUIRED**. Do not request the disposable Form URL until an eligible dataset/script and all prerequisites are ready. At that point say **GOOGLE FORM ACCEPTANCE TEST READY**, ask for the Form EDIT URL, and let the owner run/authorize the generated script. Do not request Google credentials or add OAuth. Record exact expected/actual counts, title/option mapping, text/multiple-choice/checkbox/scale behavior and duplicate prevention. Synthetic Google submission remains blocked.
+
+## Reporting categories
+
+Use exactly the relevant evidence category: **PASSED ON RENDER**, **PASSED LOCALLY ONLY**, **BLOCKED BY FREE INFRASTRUCTURE**, **REQUIRES OWNER ACTION**, or **REQUIRES EXTERNAL SERVICE**. Keep actual test failures explicit too. A free frontend loading is not acceptance of OCR, persistence, email or Google delivery. Do not invite students with real data or accept real payments while those promises remain unverified.

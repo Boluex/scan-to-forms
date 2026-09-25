@@ -1,15 +1,18 @@
-# Controlled real-OCR acceptance: paid API/worker/queue, shared private object storage.
-# Supply PostgreSQL, storage, SMTP, and business configuration before deployment.
-# Worker sizing is an initial test candidate, not measured capacity or a free tier.
-services:
-  - type: web
-    name: scantoforms-api
-    runtime: docker
-    plan: starter
-    dockerfilePath: ./backend/Dockerfile.render
-    dockerContext: ./backend
-    healthCheckPath: /health/
-    envVars:
+# $0 disposable acceptance deployment: every resource must remain on plan free.
+# No OCR worker; local media and free Redis are NOT durable. No paid provisioning.
+projects:
+- name: ScanToForms Beta
+  environments:
+  - name: Beta
+    services:
+    - type: web
+      name: scantoforms-api
+      runtime: docker
+      plan: free
+      dockerfilePath: ./backend/Dockerfile.render
+      dockerContext: ./backend
+      healthCheckPath: /health/
+      envVars:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DJANGO_DEBUG
@@ -25,7 +28,9 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: scantoforms-beta-db
+          property: connectionString
       - key: PROCESSING_MODE
         value: celery
       - key: CELERY_TASK_ALWAYS_EAGER
@@ -50,121 +55,46 @@ services:
       - key: BANK_ACCOUNT_NUMBER
         sync: false
       - key: DIGITIZATION_PRICE_PER_RESPONDENT_NGN
-        sync: false
+        value: '500'
       - key: SYNTHETIC_PRICE_PER_RESPONSE_NGN
-        sync: false
+        value: '1000'
       - key: USE_S3_STORAGE
-        value: 'true'
-      - key: AWS_STORAGE_BUCKET_NAME
-        sync: false
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_S3_REGION_NAME
-        sync: false
-      - key: AWS_S3_ENDPOINT_URL
-        sync: false
+        value: 'false'
       - key: EMAIL_BACKEND
-        value: django.core.mail.backends.smtp.EmailBackend
-      - key: EMAIL_HOST
-        sync: false
-      - key: EMAIL_PORT
-        value: '587'
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
-        sync: false
-      - key: EMAIL_USE_TLS
-        value: 'true'
+        value: apps.core.email.ResendEmailBackend
       - key: DEFAULT_FROM_EMAIL
         sync: false
-  - type: keyvalue
-    name: scantoforms-redis
-    plan: 256mb
-    ipAllowList: []
-    maxmemoryPolicy: noeviction
-    persistenceMode: journal-snapshot
-  - type: worker
-    name: scantoforms-ocr
-    runtime: docker
-    plan: 2c-4g
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    maxShutdownDelaySeconds: 300
-    envVars:
-      - key: RENDER_TARGET
-        value: ocr-production
-      - key: OCR_ENGINE
-        value: auto
-      - key: PADDLEOCR_DEVICE
-        value: cpu
-      - key: PADDLE_PDX_CACHE_HOME
-        value: /home/appuser/.paddlex
-      - key: DJANGO_SECRET_KEY
-        fromService:
-          type: web
-          name: scantoforms-api
-          envVarKey: DJANGO_SECRET_KEY
-      - key: DJANGO_DEBUG
-        value: 'false'
-      - key: DATABASE_URL
-        fromService:
-          type: web
-          name: scantoforms-api
-          envVarKey: DATABASE_URL
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: scantoforms-redis
-          property: connectionString
-      - key: PROCESSING_MODE
-        value: celery
-      - key: CELERY_TASK_ALWAYS_EAGER
-        value: 'false'
-      - key: TEST_DEPLOYMENT
-        value: 'true'
-      - key: ENABLE_LEGACY_WORKSPACE
-        value: 'false'
-      - key: ENABLE_PAYSTACK
-        value: 'false'
-      - key: USE_S3_STORAGE
-        value: 'true'
-      - key: AWS_STORAGE_BUCKET_NAME
-        fromService:
-          type: web
-          name: scantoforms-api
-          envVarKey: AWS_STORAGE_BUCKET_NAME
-      - key: AWS_ACCESS_KEY_ID
-        fromService:
-          type: web
-          name: scantoforms-api
-          envVarKey: AWS_ACCESS_KEY_ID
-      - key: AWS_SECRET_ACCESS_KEY
-        fromService:
-          type: web
-          name: scantoforms-api
-          envVarKey: AWS_SECRET_ACCESS_KEY
-      - key: AWS_S3_REGION_NAME
-        fromService:
-          type: web
-          name: scantoforms-api
-          envVarKey: AWS_S3_REGION_NAME
-      - key: AWS_S3_ENDPOINT_URL
-        fromService:
-          type: web
-          name: scantoforms-api
-          envVarKey: AWS_S3_ENDPOINT_URL
-  - type: web
-    name: scantoforms-web
-    runtime: node
-    plan: free
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    startCommand: npm run start -- --hostname 0.0.0.0 --port $PORT
-    healthCheckPath: /
-    envVars:
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_TIMEOUT_SECONDS
+        value: '15'
+      - key: MEDIA_ROOT
+        value: /app/media
+    - type: keyvalue
+      name: scantoforms-redis
+      plan: free
+      ipAllowList: []
+      maxmemoryPolicy: noeviction
+      persistenceMode: 'off'
+    - type: web
+      name: scantoforms-web
+      runtime: node
+      plan: free
+      rootDir: frontend
+      buildCommand: npm ci && npm run build
+      startCommand: npm run start -- --hostname 0.0.0.0 --port $PORT
+      healthCheckPath: /
+      envVars:
       - key: NODE_VERSION
         value: '22'
       - key: NEXT_PUBLIC_API_URL
         sync: false
+      - key: NEXT_PUBLIC_DEPLOYMENT_NOTICE
+        value: 'Disposable test deployment: OCR processing is unavailable here. Uploads
+          can disappear after restart, redeploy or spin-down. Use non-sensitive test
+          files, keep your originals, and do not transfer real money for test orders.'
+    databases:
+    - name: scantoforms-beta-db
+      plan: free
+      postgresMajorVersion: '16'
+      ipAllowList: []

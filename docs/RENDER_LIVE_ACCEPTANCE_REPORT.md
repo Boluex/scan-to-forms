@@ -1,222 +1,174 @@
 # ScanToForms Render live acceptance report
 
-Assessment date: 2026-09-25. Application baseline: `7ac030a`.
+Assessment: 2026-09-25. **Current constraint: $0; free Render resources only.** This supersedes the prior proposed paid-worker deployment. No paid worker, paid disk or object-storage service is authorized. The product remains the existing two-service MVP.
 
-**Verdict: BLOCKED — not deployed or live-accepted from this workspace.** The local MVP is a controlled-beta candidate. There is no evidence yet that its complete workflow works on Render or submits correctly to a real Google Form. Deployment preparation is not deployment acceptance.
+**Overall verdict: NOT FULLY ACCEPTED.** Deployment awaits Render connection and owner configuration. Live OCR and upload persistence are blocked by infrastructure. Real Google execution remains **TESTING REQUIRED** and is deferred until its prerequisites are ready. Local passes are not Render passes.
 
-This report separates previously completed local validation from source inspection, this session's configuration checks, and external execution. `NOT RUN` means no live attempt was possible; it does not mean the application failed that test. No customer data, real bank transfer, or Google response was created in this session.
+Evidence categories: **PASSED ON RENDER**, **PASSED LOCALLY ONLY**, **BLOCKED BY FREE INFRASTRUCTURE**, **REQUIRES OWNER ACTION**, **REQUIRES EXTERNAL SERVICE**. No capability currently has PASSED ON RENDER evidence.
 
 ## 1. Render services actually deployed
 
-**No Render deployment was observed or verified. Existing account resources are unknown.** No authenticated Render integration, Render CLI configuration, Render credential, workspace ID, or deployment URL was available. The available Render integration was suggested for connection; it was not connected at the time of this report. No direct provisioning operation was issued. Existing account-side automation or billing could not be inspected.
+**REQUIRES OWNER ACTION.** No Render services have been created or observed through authenticated account access. The integration still reports unconnected. Existing account resources and any pre-existing Git deployment automation cannot be inspected.
 
-The original blueprint described only an API and frontend in manual-transcription mode. The prepared blueprint now describes:
-
-| Resource | Configuration prepared | Actual state |
-| --- | --- | --- |
-| `scantoforms-api` | Docker web service, existing `starter` plan, database health check | Not deployed/observed |
-| `scantoforms-web` | Node 22 Next.js web service, `free` plan | Not deployed/observed |
-| `scantoforms-ocr` | Docker worker, `2c-4g` candidate, concurrency 1 | Not deployed; capacity unmeasured |
-| `scantoforms-redis` | Private Key Value, `256mb`, persistent, no eviction | Not deployed/observed |
-| PostgreSQL | External `DATABASE_URL` supplied to API and worker | Not provisioned by blueprint |
-| Private object storage | External shared S3-compatible bucket | Not provisioned by blueprint |
-
-Candidate plans must be checked against the selected workspace's availability and budget. The repository branch is `main`. Initial remote inspection returned `8704599cea521e39943f762c052b806315de1e37`, the pre-refactor baseline; the focused MVP commits were local only. A shorter parallel query timed out, but the original query completed. A subsequent normal push **succeeded**, publishing the MVP and deployment preparation through `5cc0246` to `https://github.com/Boluex/scan-to-forms.git`. No force push was used. This resolves the stale remote source; it does not establish that Render built or accepted it. A Render deploy must record its actual commit SHA, including any later documentation checkpoint, rather than assume a push implies deployment.
+The prepared Blueprint defines project **ScanToForms Beta**, environment **Beta**, with only explicitly free resources: Next.js web, Django web, PostgreSQL 16 and private Key Value. No worker, persistent disk or object-store resource is declared. If free quotas are unavailable, stop rather than upgrade. Earlier preparation was published to GitHub; deploy the current free-only `main`, not the superseded paid blueprint or original pre-refactor application.
 
 ## 2. Exact environment configuration categories
 
-The complete variable-by-variable checklist, including values, service scope and optional limits, is in [RENDER_TEST_DEPLOYMENT.md](RENDER_TEST_DEPLOYMENT.md#exact-environment-variable-checklist). Categories are:
+See the complete [environment checklist](RENDER_TEST_DEPLOYMENT.md#exact-environment-checklist). Categories: Django secret/hosts/HTTPS; browser CORS/CSRF/frontend origin; PostgreSQL; private nonpersistent Redis; existing Celery mode with eager tasks off; ephemeral private media; Resend HTTPS key/sender; manual bank settings; configurable prices; frontend API URL and disposable-test notice.
 
-- Django: secret, `DJANGO_DEBUG=false`, allowed hosts, trusted proxy and HTTPS settings.
-- Browser security: exact `DJANGO_CORS_ALLOWED_ORIGINS`, `DJANGO_CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL`.
-- Persistence: shared PostgreSQL `DATABASE_URL`; private bucket name, region, endpoint and credentials.
-- Queue/worker: `REDIS_URL`, `PROCESSING_MODE=celery`, eager tasks off, CPU OCR engine and model-cache path, worker build target.
-- Business: actual bank name/account holder/account number; positive NGN digitization and synthetic rates; manual bank transfer enabled.
-- Email: real SMTP host, STARTTLS port/login/secret and verified sender.
-- Frontend: Node 22 and build-time `NEXT_PUBLIC_API_URL` ending in `/api/v1`.
-- Scope: legacy workspace and Paystack off; existing code keeps organizations, public Bot Lab, OAuth and WhatsApp disabled.
-
-Bare `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, and `CSRF_TRUSTED_ORIGINS` are not recognized environment aliases in this application. Use the `DJANGO_` names. Bank details and rates were not fabricated. No secrets were added to tracked files.
+Beta rates in the deployment environment are NGN 500 per digitized respondent and NGN 1000 per synthetic response. No frontend price constants were added. Bank details and `RESEND_API_KEY` must be entered directly in Render, not chat. No SMTP or invented credentials are configured. Use actual `DJANGO_` environment names, not generic aliases.
 
 ## 3. Persistent-storage configuration
 
-**Prepared, not verified against a real bucket.** Both services are configured to use the same private S3-compatible storage. The task opens the Django storage object and copies it into a temporary directory for OCR, so it does not require the API's local filesystem. Source records store the object key in PostgreSQL. Generated script content lives in PostgreSQL; CSV/XLSX are regenerated from stored records.
+**BLOCKED BY FREE INFRASTRUCTURE.** The owner has no bucket or persistent disk. `USE_S3_STORAGE=false` and `MEDIA_ROOT=/app/media` intentionally use disposable local files. Uploads can disappear after restart, redeploy or spin-down. The frontend displays this limitation and asks users to keep originals and use non-sensitive test files.
 
-Application source routes are authenticated and owner/staff scoped. There is no unrestricted Django `/media/` route. However, `default_acl=None` and signed-URL settings do not override an incorrectly public bucket policy. Actual object privacy remains untested. Required evidence: owner download succeeds; User B and unauthenticated source downloads fail; unsigned bucket-object access fails; API and worker storage reads produce the same SHA-256 before and after redeploy.
-
-No Render disk is configured. A disk belongs to one service instance and cannot supply a shared API/worker filesystem. Shared persistent object storage is required for this architecture. [Render disk restrictions](https://render.com/docs/disks).
+Existing owner/staff source-file authorization remains intact. No public media route was added. Database metadata is not a substitute for a missing source file. A private shared S3-compatible bucket is needed before students entrust actual questionnaires to this deployment and before a separate worker reliably accesses the files. No new storage provider was implemented. An R2/free-tier proposal and its account setup would require a separate owner decision.
 
 ## 4. API URL
 
-**Unknown — no deployed URL provided or discovered.** Expected health path is `/health/`, not the API root. The health handler checks PostgreSQL connectivity with `SELECT 1`; it does not check Redis, a worker, storage, SMTP or OCR.
+**REQUIRES OWNER ACTION — unknown.** No deployed URL is available. `/health/` checks a database query only. It does not validate email, files, Redis or worker execution. Root `/` is not the configured Django health endpoint.
 
 ## 5. Frontend URL
 
-**Unknown — no deployed URL provided or discovered.** Set the actual API URL before `next build`, then rebuild if it changes. The code's localhost fallback must not be used in a Render build. Verify frontend assets, CORS and authentication from the actual HTTPS browser origin.
+**REQUIRES OWNER ACTION — unknown.** Set the actual API URL ending `/api/v1` before building. The build must include the visible deployment notice. Neither localhost defaults nor a successful local build establish a live frontend.
 
 ## 6. Database status
 
-**Render: NOT RUN.** The blueprint requires a PostgreSQL URL and does not create a database. The API's existing startup script runs migrations and static collection before Gunicorn; the worker does neither. Confirm all migrations applied before queuing work. Keep the tested PostgreSQL 16 version where available or explicitly validate the version provisioned. Local evidence is the prior 79-test PostgreSQL 16 run; no live database, migration history, backup or restore was inspected.
+**REQUIRES OWNER ACTION.** Free PostgreSQL 16 is declared, not provisioned. The existing API entrypoint applies migrations and collects static files. PostgreSQL remains the source of truth for users, orders, payment/audit records and results while the test database exists. Free database expiration prevents any indefinite durability claim; record its actual expiry after creation. Do not reset an existing database. [Render free limits](https://render.com/docs/free).
 
 ## 7. Redis status
 
-**Render: NOT RUN.** The prepared private Key Value resource uses `noeviction` and `journal-snapshot` persistence. Both services reference its connection string. Verify a Redis PONG from the API and a Celery worker reply separately. A broker PONG alone cannot prove tasks are consumed. Render documents Key Value persistence and Blueprint resource references in its [Blueprint reference](https://render.com/docs/blueprint-spec).
+**REQUIRES OWNER ACTION.** Free Key Value is declared with private access, `noeviction`, and persistence off. No PONG has been observed. Its queue/results are not permanent records. If it restarts, a PostgreSQL OCR job may remain while its queue message is lost. The existing operator recovery limitations remain; no durable queue guarantee is claimed.
 
 ## 8. Worker status
 
-**Render: NOT RUN.** The worker selects the existing `ocr-production` Docker stage using the non-secret `RENDER_TARGET` build argument. It contains the existing pinned PaddleOCR/PaddlePaddle/PaddleX dependencies and Tesseract and runs Celery at concurrency 1. Render's translation of environment values into build arguments is documented in [Docker on Render](https://render.com/docs/docker).
-
-Required live proof: worker startup/registration, shared bucket access, actual queued task IDs received, persisted OCR results, final job status and engine. No worker image was fully built this session, no real job traversed a deployed broker, and no Render worker resource measurements exist.
+**BLOCKED BY FREE INFRASTRUCTURE.** No Render worker is provisioned. The architecture remains API → Redis → Celery worker → OCR. The worker code/image stages are retained; no inline worker, eager execution, fake OCR or free-service workaround was added. A paid digitization job may queue but will not be consumed here. A locally completed task must not be reported as a Render worker pass.
 
 ## 9. Authentication test result
 
-**Live register/login/logout/reset request/reset completion/email delivery: NOT RUN.** Previous local browser and backend tests passed. No SMTP credentials, deployed host or inbox access was available. Neither the console email backend nor a test mail backend qualifies as delivered email. Django Admin login and its static assets also remain untested on Render.
+**PASSED LOCALLY ONLY; live delivery REQUIRES EXTERNAL SERVICE and owner configuration.** Existing account flows now have an optional Django backend that sends through Resend's HTTPS API. Local tests cover request construction, provider rejection/rate-limit/timeouts, missing credentials, header injection, acknowledgement validation, transactional registration rollback and verification/reset completion.
+
+The new transport is tested with mocked HTTP, not a real API key or inbox. Real register/login/logout/reset request/reset completion remain unrun on Render. A Resend acknowledgement is not proof of delivery. The owner must set the key and sender; arbitrary customer recipients require a verified sending domain. The Resend test domain is limited to the account owner's address. [Resend restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain), [domain verification](https://resend.com/docs/dashboard/domains/introduction).
 
 ## 10. Digitization test result
 
-**Live 2 respondents × 4 pages = 8 pages: NOT RUN.** The source and local tests support ordered image slots and one complete PDF per respondent. Existing uploads create documents/pages without queuing OCR. An operator must verify a complete questionnaire schema before starting paid processing.
-
-Required live evidence: one test order reference, eight distinct source documents/page slots, correct price snapshot, completeness, zero pre-payment OCR jobs, and two logical respondents after actual OCR. Do not submit a shuffled pile or a combined multi-respondent PDF as a supported grouping workflow.
+**PASSED LOCALLY ONLY; live order/upload tests REQUIRES OWNER ACTION.** The proposed small live case remains 2 respondents × 4 pages = 8 physical pages and 2 logical responses. At the configured rate its total is NGN 1000. No such Render order/upload was created. Free deployment can test setup, completeness, authorization and payment states using disposable sources. The real OCR portion cannot pass without a worker/storage solution.
 
 ## 11. OCR result
 
-**Live OCR: NOT RUN.** Prior real local smoke tests recognized printed text using both PaddleOCR and Tesseract, one page per engine. That is not an eight-page queued pipeline result or measured questionnaire accuracy. The configured `auto` mode may use real Tesseract fallback; record the actual engine from every job. No mocked OCR or manual transcription was substituted for the required live test.
+**PASSED LOCALLY ONLY / BLOCKED BY FREE INFRASTRUCTURE.** Prior local real PaddleOCR and Tesseract smoke tests processed one printed page per engine. No deployed OCR ran. No fabricated OCR results or manual-mode substitution was used. A future local worker connected to the same broker/database would still need reliable shared source storage, which is absent. No proposed zero-cost workaround has been implemented.
 
 ## 12. Grouping result
 
-**Live grouping: NOT RUN.** Local regressions cover 8 ordered pages/2 respondents, missing/duplicate/out-of-order logical pages, and a 480-page/120-respondent data-model case. Those are not Render OCR throughput tests. Live acceptance must inspect both respondents, all four assigned logical pages each, classification warnings and duplicate/missing-page handling.
+**PASSED LOCALLY ONLY.** Existing tests cover ordered pages, missing/duplicate/out-of-order logical pages and 480 page records representing 120 respondents. This is not 480-page real OCR throughput. A live eight-page grouping inspection remains unrun. Arbitrarily shuffled respondent pages and combined multi-respondent PDFs remain outside the reliable upload flow.
 
 ## 13. Manual review result
 
-**Live review: NOT RUN.** Earlier local tests cover correction preservation, reaggregation, confirmation invalidation and final-data filtering. The live test must deliberately edit an answer, trigger a material regroup/reaggregation, verify the correction remains and confirmation is invalidated, then approve and confirm again. Any unresolved blocking issue must prevent READY/final delivery.
+**PASSED LOCALLY ONLY.** Local correction/confirmation integrity regressions pass. No paid, processed Render result was available to review. The real acceptance check must correct an answer, reaggregate/regroup, preserve that correction, invalidate stale confirmation and reconfirm before final delivery. No READY/CONFIRMED flags were manufactured to bypass those prerequisites.
 
 ## 14. Payment workflow result
 
-**Live payment workflow and bank reconciliation: NOT RUN.** Earlier local tests cover price snapshots, payment claim without unlock, staff-only verification, rejection and audit. The live test needs configured real bank instructions/rates and separate customer/operator accounts. User A's claim must leave processing/results locked; only staff can verify after independently checking the transfer. No actual transfer was made, and no bank receipt was claimed as verified.
+**PASSED LOCALLY ONLY; Render REQUIRES OWNER ACTION.** Existing claim → PAYMENT_SUBMITTED → staff verification → PAID logic is unchanged. The customer's claim never unlocks processing/results and customers cannot self-verify. No real transfer was requested or performed. Bank values belong in Render settings. Use explicitly identified test orders and audit notes for workflow acceptance; these do not establish real bank reconciliation or commercial readiness.
 
 ## 15. CSV/XLSX result
 
-**Live download/content/ownership: NOT RUN.** Prior local tests cover final human responses, one respondent per row, and spreadsheet formula protection; the browser test downloaded XLSX. Verify live CSV and XLSX contain exactly the two final respondents and known corrected values, exclude incomplete data, neutralize formula prefixes, and deny another user's request. Synthetic delivery uses labelled CSV, not an unlabelled human export.
+**PASSED LOCALLY ONLY.** Existing final-data, one-row-per-respondent and spreadsheet-injection tests pass. No Render result download occurred. Live final export requires legitimate reviewed/confirmed data, not a bypassed readiness state. The free deployment can expose UI/instructions; successful final delivery remains a separate unperformed check.
 
 ## 16. Google Apps Script generation result
 
-**Live generation/copy/.gs download/instructions: NOT RUN.** These paths were validated locally. The script targets an existing form; ScanToForms does not create a form or verify ownership. Standard editable `/forms/d/<id>` URLs and raw IDs are accepted; `forms.gle` and published `/d/e/` links are rejected. Paid, released final responses and complete question mappings are required. Copy and download must be compared with the stored script at live acceptance.
+**PASSED LOCALLY ONLY.** Existing mapping, paid/final-data gating, copy/download and instructions code remains. No eligible dataset/script was generated on Render. Standard Form edit URLs/raw IDs are supported by validation; forms.gle and published `/d/e/` links remain rejected. No OAuth, Form import, direct API response creation or ownership claim was added.
 
 ## 17. REAL Google Form execution result
 
-**NOT RUN — no disposable Form URL or authorized Google session provided. Zero Google responses were submitted.** No claim of general Google Forms compatibility is made.
+**TESTING REQUIRED / REQUIRES OWNER ACTION / REQUIRES EXTERNAL SERVICE.** Zero submissions were made. The owner will supply a disposable Form EDIT URL and personally authorize/run Apps Script only when prerequisites are ready. Do not request that URL prematurely. At that gate say **GOOGLE FORM ACCEPTANCE TEST READY** and ask for the edit URL, never Google credentials.
 
-Use a separate test with 5–10 known, disposable responses recorded on test questionnaires; the 2×4 grouping job has only two responses. Keep the questionnaire/Form clearly identified as a disposable acceptance test. Do not reclassify generated Bot Lab records as human responses to bypass the synthetic-submission block. The owner must execute and authorize `previewMapping()`, `startSubmission()`, `continueSubmission()` and `submissionStatus()` in Apps Script.
-
-Record the initial/final response counts, each mapped title and actual item type, expected versus received values and any errors. Test text, multiple choice, checkbox, and scale individually. Continue the same completed script again and verify no additional responses. Preserve the same project/dataset for resume testing; a separate project has separate state.
-
-Generator branches also exist for paragraph, list, rating, date/date-time, time/duration, grid and checkbox-grid. **Every type remains externally unvalidated.** Branch existence is not proof of correct Google behavior. File-upload question submission has no supported branch. Complex grids, branching, collected-email settings, validation constraints, date/time zones and choice mismatches require explicit testing and must not be advertised as generally supported.
+Required evidence remains 5–10 known disposable test responses, correct title/item/option mapping, exact response count and duplicate checks using previewMapping/startSubmission/continueSubmission/submissionStatus. Text, multiple-choice, checkbox and scale each need actual tests. Grids, dates/times/durations, ratings and special constraints remain unvalidated; unsupported types must be recorded. File-upload question submission and public synthetic Google submission remain unsupported. No general compatibility claim follows from one successful form.
 
 ## 18. Synthetic order result
 
-**Live synthetic service: NOT RUN.** Local order tests cover separate blank-template input, requested synthetic count, internal generation, corrections, paid release and labelled CSV. Required live job: one small blank questionnaire, 10 requested responses, payment claim/staff verification, schema inspection, internal generator, inspection/correction of all 10 rows, attached BotRun, READY, and customer download.
+**PASSED LOCALLY ONLY; live request/payment REQUIRES OWNER ACTION.** One blank template plus 10 requested responses costs NGN 10000 at the beta rate. Request upload, pricing, payment claim, staff verification and operator inspection can be tested without OCR. No Render synthetic order was created.
 
-All results must remain visibly marked **SYNTHETIC TEST DATA**. Public synthetic Google submission remains blocked. No workaround was added and no synthetic records were passed through the digitization service.
+The existing internal generator also dispatches to Celery in this configuration, so queued generation cannot complete without a worker. An operator can use existing result-attachment functionality only with a legitimate completed BotRun/dataset and proper ownership/review. No dataset was fabricated or copied into a human classification. Supported synthetic CSV must retain SYNTHETIC TEST DATA. Public synthetic Google submission remains blocked.
 
 ## 19. Notification result
 
-**Live notifications: NOT RUN.** Earlier tests cover events, ownership and the browser notification path. Verify actual unread count, payment verification, processing, needs-attention, payment rejection and READY events under the customer account, then mark read and confirm User B cannot retrieve those records. Database notifications do not establish email delivery.
+**PASSED LOCALLY ONLY.** No live notification feed/count was observed. Payment verified/rejected, processing, needs-attention and ready messages are database records. Test ownership and actual unread count after real state changes. A processing/queued notification does not prove a worker ran; a ready notification requires legitimate fulfillment. These are not email-delivery tests.
 
 ## 20. Persistence/redeploy result
 
-**NOT RUN. No persistence claim is accepted.** There is no deployed object or row to compare across a restart. Required sequence: record order/document/output IDs and source hashes; wait for work to finish; restart/redeploy API and worker; compare PostgreSQL records, source hashes through both services, owner download and generated output retrieval. Verify object privacy again. Any missing promised source or result fails acceptance.
-
-Only the model cache and temporary OCR files may disappear safely. Customer sources must remain in the shared bucket. Free Render web filesystems are ephemeral; free PostgreSQL expires; free Key Value does not persist data. These do not provide a durable customer-data deployment. [Render free-service limitations](https://render.com/docs/free).
+**BLOCKED BY FREE INFRASTRUCTURE — NOT PASSED.** No live restart occurred. Local Render uploads are explicitly disposable; source loss is expected to be possible. A single restart where a file survives would not establish durable storage. PostgreSQL and free Redis have their own lifecycle limits. No public/customer persistence promise is appropriate.
 
 ## 21. Cross-user security result
 
-**Live security: NOT RUN.** Prior ownership regressions passed locally. Create two ordinary customers plus a separate staff operator on Render. Attempt known-ID/reference access across orders, questionnaire/schema, documents/source files, answers, page movement, exports, scripts, synthetic results and notifications. Expect denied/not-found with no bytes or mutation; verify the underlying records remain unchanged. Also attempt customer self-verification of payment. Staff access is explicitly authorized, not evidence that ordinary customer isolation failed.
+**PASSED LOCALLY ONLY; Render REQUIRES OWNER ACTION.** Existing ownership tests pass, but no deployed User A/User B endpoint attempts occurred. Live checks must cover orders, questionnaires, source images, answers, page moves, exports, scripts, synthetic results and notifications, including known IDs. Authorized staff access stays explicit. Free local storage does not justify relaxing authentication or publishing `/media/`.
 
 ## 22. Observed resource limitations
 
-No Render memory, CPU, OCR duration, retries, timeouts or restarts were observed. The `2c-4g` worker is a starting configuration for measurement, not a certified minimum or batch-capacity estimate. Model downloads/cache initialization may delay first processing. The worker shutdown grace is 300 seconds while task limits are 540 seconds soft/600 hard; drain work before planned redeploy. Unexpected termination may leave a processing job needing operator recovery.
+No Render timing, memory, restarts, cold-start behavior or OCR throughput was observed. There is no worker to measure. Free web storage and Redis are nondurable; the database expires. The earlier candidate paid worker sizing was removed and is not an authorized deployment. No 480-page capacity estimate is made.
 
-Locally, approximately 2.9 GB disk space remained and the host was under substantial memory pressure. A new full Paddle worker image build was not attempted under those constraints. Existing unrelated containers were left untouched. No ScanToForms containers were running at inspection. No 480-page real OCR workload has been established; the 480-page result is a model/grouping test only.
+Free Render web services lack shell access. Operator creation uses the existing local Django management command against the isolated test PostgreSQL database, with a temporarily restricted operator-IP access rule and protected connection credentials. No bootstrap admin endpoint/default password was added.
 
 ## 23. Failures discovered
 
-- The original Render blueprint selected manual mode and had no broker/worker, so it could not satisfy the newly required deployed real-OCR path.
-- The previous worker instructions required selecting a named Docker target without supplying a Render selection mechanism. The default final image was the API, which lacks Paddle dependencies.
-- Render account access, shared bucket credentials, production database URL, SMTP/business configuration and a disposable Google Form are missing from this workspace. This blocks live execution, rather than constituting a reproduced deployed product failure.
-- The existing Playwright harness launches local services and manual transcription. Running it unchanged would not be Render acceptance.
-- At inspection, remote `main` was still the pre-refactor application, not the tested two-service MVP. Deploying that revision would test the wrong product.
-- Local `docker build --check` could not run: the installed CLI lacks Buildx and rejects `--check`. This is recorded as unavailable, not passing. The ordinary base-stage build did pass.
-- No deployed application failure was reproduced because no deployed application was accessible.
+- The earlier prepared blueprint required paid API/worker/queue resources and an unavailable private bucket; it contradicted the owner's new $0 constraints and has been replaced.
+- SMTP was unsuitable for this free deployment and is replaced in Render configuration by the requested Resend HTTPS backend.
+- No Render authorization is available yet; no live account, service or external delivery failure could therefore be reproduced.
+- Adding account transport tests exposed shared auth throttle-cache state in the test suite. The new fixture now clears its test cache before/after use. Production throttle rules were not changed.
+- Queue dispatch without a consumer, ephemeral media and database expiry are explicit limitations, not hidden successful processing/persistence.
 
 ## 24. Fixes made and validation
 
-Deployment-only changes:
+Changed only deployment necessities:
 
-1. `render.yaml`: real Celery mode, eager tasks disabled, private persistent Key Value, separate single-concurrency OCR worker, shared database/storage references. The API Dockerfile and frontend build/start commands remain unchanged.
-2. `backend/Dockerfile`: non-secret `RENDER_TARGET` selector reuses existing production/OCR stages; default API selection and explicit local Compose targets remain available.
-3. `docs/RENDER_TEST_DEPLOYMENT.md`: exact environment checklist, real-worker setup, private storage verification, persistence procedure, Google test rules and limitations.
-4. This report: evidence, unexecuted tests and acceptance blockers.
+- `render.yaml`: named beta project, free API/frontend/PostgreSQL/Key Value, no worker/disk/bucket, beta rates as environment values, Resend settings, ephemeral-media/test notice.
+- `backend/apps/core/email.py`: Django email backend for Resend HTTPS; no new dependency or OCR architecture change.
+- `backend/config/settings.py` and `.env.example`: key/timeout settings and safe local configuration examples; no secrets.
+- `backend/tests/test_resend_email.py`: 11 focused transport/account tests with mocked network calls.
+- `frontend/app/layout.tsx`: environment-driven disposable-test notice, no product redesign.
+- Deployment guide and this report: revised evidence and owner/infrastructure gates.
 
-No models, migrations, business logic, UI, product scope or credentials were changed. No resources were deployed, no database reset, and no external response submission occurred.
-
-| Check this session | Result |
-| --- | --- |
-| Original and updated `render.yaml` against Render's published JSON schema | PASS locally; not account-side provisioning validation |
-| Docker Compose configuration | PASS |
-| Blueprint cross-service environment references and real queue/private storage settings | PASS configuration checks |
-| Main Dockerfile shared base-stage build | PASS using cached dependencies |
-| `git diff --check` | PASS |
-| Publish current MVP/deployment source to GitHub `main` | PASS; normal push through `5cc0246` |
-| Full new OCR worker image build/runtime | NOT RUN; local resources insufficient for a responsible heavy build |
-| Buildx `--check` | UNAVAILABLE; unsupported by installed CLI |
-| Live deployment and acceptance tests | NOT RUN; external access/configuration missing |
-
-Previous validation remains documented in [MVP_IMPLEMENTATION_REPORT.md](MVP_IMPLEMENTATION_REPORT.md#20-validation-results): 79 backend tests on each of SQLite and PostgreSQL 16, browser MVP journey, Django/migrations/Ruff/ESLint/TypeScript/build/audit, real printed-text OCR smoke tests, and API image/runtime checks. Those were not rerun as a substitute for external acceptance and do not validate the new Render worker runtime.
+Current validation: **90 backend tests passed on SQLite (12.56 s) and 90 passed on PostgreSQL 16 (22.35 s)**, including 11 new Resend cases. Ruff, Django check, migration consistency, frontend ESLint, TypeScript, Next.js production build, free-only Render schema checks, Compose validation and diff whitespace checks passed. The configured warning was also verified in the production HTML for landing, digitization, synthetic and registration pages. The isolated PostgreSQL container was removed afterward; no existing database was reset. No models/migrations were added. Previous local browser and real-engine OCR evidence remains historical; none is relabelled Render acceptance. Resend network calls were mocked and no email was actually delivered by these tests.
 
 ## 25. Remaining blockers
 
-1. Connect Render and identify the intended workspace/project and affordable API/worker/queue resources. Deploy the published current MVP commit, not the original baseline.
-2. Supply a persistent PostgreSQL database and private shared S3 bucket, with usable least-privilege credentials in Render. Verify actual privacy and persistence.
-3. Configure bank details, positive service rates, exact deployment origins/API URL and working SMTP with an inbox for delivery checks.
-4. Build/deploy the actual worker and services, then complete real queued OCR and every deployment/security/persistence acceptance step.
-5. Supply an owner-accessible disposable Google Form and complete its manual authorization/execution and response-by-response comparison.
-
-Until those are resolved, the answer to “does the complete product work outside the test suite?” is **not yet established**.
+1. Connect Render, select the authorized workspace, confirm free quotas and create the free-only deployment; record exact deployed revision and URLs.
+2. Owner supplies Resend secret/sender and bank settings directly in Render; verify a sending domain for arbitrary student email. Configure exact allowed hosts/origins/frontend API URL.
+3. Create a real staff account securely and execute free-scope live acceptance plus cross-user checks with disposable data.
+4. Persistent private shared source storage and a correctly operated worker remain infrastructure gates; neither is solved by this free deployment.
+5. Real final-data delivery and Google execution need their prerequisites and the owner's manual Form test. No request for the Form URL has been made at this stage.
 
 ## Capability matrix
 
-“Prior pass” refers to the previous local validation, not a fresh test or a production certification. No live rows are silently treated as passing.
-
 | Capability | Local | Render | Real External Test | Verdict |
 | --- | --- | --- | --- | --- |
-| Landing page | Prior build/browser pass | NOT RUN | Not observed | Pending live acceptance |
-| Registration | Prior backend/browser pass | NOT RUN | Email not delivered/tested | Blocked |
-| Login | Prior backend/browser pass | NOT RUN | Not observed | Pending |
-| Password reset | Prior backend pass | NOT RUN | SMTP/reset link not tested | Blocked |
-| Order creation | Prior backend/browser pass | NOT RUN | Not observed | Pending |
-| Manual payment | Prior backend/browser pass | NOT RUN | No transfer/reconciliation | Pending |
-| Digitization upload | Prior backend/browser pass | NOT RUN | Real private bucket untested | Blocked |
-| OCR | Prior one-page real engine smoke | NOT RUN | Deployed queue/worker untested | Blocked |
-| Page grouping | Prior regressions; 480-page model | NOT RUN | No real deployed 8-page run | Pending |
-| Review | Prior backend/browser pass | NOT RUN | No real deployed correction | Pending |
-| CSV | Prior backend pass | NOT RUN | No deployed download | Pending |
-| XLSX | Prior backend/browser pass | NOT RUN | No deployed download | Pending |
-| Apps Script generation | Prior backend/browser pass | NOT RUN | No deployed generation | Pending |
-| Google submission | Generator code/tests only | NOT RUN | NOT RUN | Not accepted |
-| Synthetic order | Prior backend tests | NOT RUN | No deployed operator fulfillment | Pending |
-| Notifications | Prior backend/browser pass | NOT RUN | Not observed | Pending |
-| File persistence | Storage code inspected | NOT RUN | No real bucket/redeploy test | Blocked |
-| Cross-user isolation | Prior regression pass | NOT RUN | Deployed endpoints/bucket untested | Pending |
+| Landing page | Build passed | Not run | Not observed | REQUIRES OWNER ACTION |
+| Registration | Backend passed | Not run | Resend inbox not tested | REQUIRES EXTERNAL SERVICE |
+| Login | Local regressions passed | Not run | Not observed | REQUIRES OWNER ACTION |
+| Password reset | Resend transport/account tests passed | Not run | Real email/link not tested | REQUIRES EXTERNAL SERVICE |
+| Order creation | Local regressions passed | Not run | Not observed | REQUIRES OWNER ACTION |
+| Manual payment | Local regressions passed | Not run | No transfer/reconciliation | REQUIRES OWNER ACTION |
+| Digitization upload | Local regressions passed | Not run | Only ephemeral storage planned | REQUIRES OWNER ACTION |
+| OCR | Prior real engine smoke passed | No worker | Not run | BLOCKED BY FREE INFRASTRUCTURE |
+| Page grouping | Local regressions/480-page model passed | Not run | No live OCR run | PASSED LOCALLY ONLY |
+| Review | Local regressions passed | Not run | No live corrected result | PASSED LOCALLY ONLY |
+| CSV | Local regressions passed | Not run | No live download | PASSED LOCALLY ONLY |
+| XLSX | Local regressions/prior browser passed | Not run | No live download | PASSED LOCALLY ONLY |
+| Apps Script generation | Local regressions/prior browser passed | Not run | No eligible deployed result | PASSED LOCALLY ONLY |
+| Google submission | Generator tests only | Not run | TESTING REQUIRED | REQUIRES EXTERNAL SERVICE |
+| Synthetic order | Local regressions passed | Not run | No live request/fulfillment | REQUIRES OWNER ACTION |
+| Notifications | Local regressions/prior browser passed | Not run | Not observed | REQUIRES OWNER ACTION |
+| File persistence | No remote durable store | Ephemeral by design | Not accepted | BLOCKED BY FREE INFRASTRUCTURE |
+| Cross-user isolation | Local regressions passed | Not run | Deployed endpoints untested | PASSED LOCALLY ONLY |
 
 ## Readiness answers
 
-1. **Is Render suitable for the current controlled beta?** A plausible deployment target with a paid worker/API/queue, PostgreSQL and private shared object storage. Suitability has not been demonstrated by a live run. An entirely free setup does not meet this acceptance architecture.
-2. **Can we invite 3–5 test students?** Not on the evidence available here. First deploy and pass authentication, privacy, persistence and both small service journeys; invite a controlled group only after those gates pass.
-3. **Can we safely accept money yet?** Not established. Do not open paid intake before reliable delivery, payment reconciliation, recovery and the promised Google workflow are actually verified. A clearly agreed test transfer is not a public commercial launch.
-4. **Has a real Google Form been successfully populated?** No evidence of that; zero submissions were made in this task.
-5. **Which questionnaire types are safe to advertise?** No type is live-certified yet. The narrow candidate offer is operator-reviewed digitization of clear printed questionnaires supplied in respondent/page order, with manually verified final values. Advertise no OCR accuracy percentage or guaranteed Google compatibility.
-6. **Which types must remain beta/unsupported?** Handwriting and ambiguous checkbox/tick/circle/Likert recognition remain unmeasured; shuffled respondent identification, combined multi-respondent PDFs, Google file-upload submission and public synthetic Google submission are unsupported in this scope. Grids, dates/times, ratings, branching and special Google constraints remain externally unvalidated.
-7. **Maximum batch size actually tested?** Render: zero pages. Previous real local OCR smoke: one printed page per engine. Local model/grouping regression: 480 pages representing 120 respondents, not real 480-page OCR. The requested live 8-page test has not run.
-8. **What infrastructure must change before scaling?** First establish the worker, persistent queue/database/private storage and measure the small live workload. Then size resources from observed peak memory/latency, test interrupted-job recovery and backups/restores, and establish operator capacity. Do not extrapolate from an 8-page test.
-9. **Remaining first paid pilot blockers?** External access/configuration, real deployed OCR and result delivery, password recovery, private persistent uploads, cross-user acceptance, actual bank reconciliation, and successful disposable Google execution for the advertised types.
-10. **Remaining broader launch blockers?** All pilot gates plus representative recognition/Google compatibility evidence, measured sustained capacity, operator/support processes, monitoring, failure recovery and tested backup/restore. Passing the local suite alone is insufficient.
+1. **Is Render suitable for this controlled beta?** Suitable in principle for the constrained disposable workflow test. It has not been live-validated, and this $0 configuration cannot satisfy worker/persistence acceptance.
+2. **Can we invite 3–5 students?** Not yet. First deploy and verify email, authentication, authorization and the small free-scope flow. Any later invitation at this configuration must explicitly permit only disposable non-sensitive test data; real questionnaires need private persistent storage first.
+3. **Can we safely accept money yet?** No paid-service acceptance is established. The notice says not to transfer real money for test orders. Verified delivery/persistence, operator reconciliation and the advertised Google outcome are still missing.
+4. **Has a real Form been populated?** No. TESTING REQUIRED until the owner runs the prepared script and verifies results.
+5. **What is safe to advertise?** A disposable website workflow test only. Clear printed, ordered questionnaires with operator review remain the narrow candidate service, not live-certified automated OCR/Google delivery.
+6. **What stays beta/unsupported?** Unmeasured handwriting/check/circle/tick/Likert recognition; shuffled respondent identification; combined multi-respondent PDFs; untested Google grids/date/time/rating/constraints. Google file-upload submission and public synthetic Google submission are unsupported.
+7. **Maximum actual batch tested?** Render zero pages. Prior real local OCR smoke one page per engine; local model/grouping regression 480 pages/120 respondents. No 480-page real OCR capacity claim.
+8. **What changes before scaling?** First obtain private shared persistent storage and a proper worker, then measure real small-job memory/timing/recovery. Durable queue/database lifecycle, backups and operator capacity need validation before scaling.
+9. **First paid pilot blockers?** Live access/configuration, real email and isolation, durable private sources, dependable processing/fulfillment, final-result delivery, bank reconciliation and successful owner-run Google acceptance.
+10. **Broader launch blockers?** All pilot gates plus representative OCR/question-type evidence, measured capacity, recovery/monitoring/backups and support operations. The free workflow test cannot establish those.

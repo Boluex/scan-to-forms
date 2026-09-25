@@ -9,7 +9,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {process.env.NEXT_PUBLIC_DEPLOYMENT_NOTICE && (
+          <aside role="note" style={{ padding: "12px 20px", background: "#fff3cd", color: "#664d03", textAlign: "center" }}>
+            {process.env.NEXT_PUBLIC_DEPLOYMENT_NOTICE}
+          </aside>
+        )}
+        {children}
+      </body>
     </html>
   );
 }
