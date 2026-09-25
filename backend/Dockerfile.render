@@ -1,3 +1,4 @@
+# API-only image: intentionally excludes Paddle/Celery worker build stages.
 FROM python:3.13-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -14,22 +15,6 @@ COPY requirements/base.txt requirements/base.txt
 RUN pip install -r requirements/base.txt
 
 COPY . .
-
-FROM base AS development
-COPY requirements/dev.txt requirements/dev.txt
-RUN pip install -r requirements/dev.txt
-
-FROM base AS ocr-worker
-COPY requirements/ocr.txt requirements/ocr.txt
-RUN pip install -r requirements/ocr.txt
-CMD ["celery", "-A", "config", "worker", "-l", "info"]
-
-FROM ocr-worker AS ocr-production
-RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /app/media /home/appuser/.paddlex \
-    && chown -R appuser:appuser /app /home/appuser/.paddlex
-USER appuser
-CMD ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "1"]
 
 FROM base AS production
 RUN useradd --create-home --uid 10001 appuser \

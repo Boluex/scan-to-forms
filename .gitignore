@@ -17,3 +17,5 @@ htmlcov/
 *.tsbuildinfo
 node_modules/
 .DS_Store
+frontend/test-results/
+frontend/playwright-report/

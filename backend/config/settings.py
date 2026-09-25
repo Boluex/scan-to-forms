@@ -43,6 +43,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -108,9 +109,9 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_CLASSES": (
         "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
+        "apps.core.throttles.WorkspaceUserThrottle",
     ),
-    "DEFAULT_THROTTLE_RATES": {"anon": "60/hour", "user": "1000/hour", "auth": "10/minute", "upload": "30/hour"},
+    "DEFAULT_THROTTLE_RATES": {"anon": "60/hour", "user": "1000/hour", "operator": "20000/hour", "auth": "10/minute", "upload": "30/hour"},
     "EXCEPTION_HANDLER": "apps.core.exceptions.api_exception_handler",
 }
 
@@ -130,6 +131,8 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
         "PlanCodeEnum": "apps.billing.models.Plan.Code",
+        "OrderStatusEnum": "apps.orders.models.Order.Status",
+        "ResponseStatusEnum": "apps.questionnaires.models.Response.Status",
     },
 }
 
@@ -201,9 +204,32 @@ MAX_ORDER_PAGES = int(os.getenv("MAX_ORDER_PAGES", "5000"))
 MAX_SYNTHETIC_RESPONSES = int(os.getenv("MAX_SYNTHETIC_RESPONSES", "1000"))
 PROCESSING_MODE = os.getenv("PROCESSING_MODE", "celery")  # celery or manual (real human transcription)
 TEST_DEPLOYMENT = env_bool("TEST_DEPLOYMENT", False)
-REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"].update({"order_upload": "120/minute", "order_create": "20/hour"})
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"].update({"order_upload": "1200/minute", "order_create": "20/hour"})
 EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+
+# Private shared uploads allow API and worker to run on separate hosts.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+if env_bool("USE_S3_STORAGE"):
+    STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage", "OPTIONS": {
+        "bucket_name": os.environ["AWS_STORAGE_BUCKET_NAME"],
+        "access_key": os.environ["AWS_ACCESS_KEY_ID"],
+        "secret_key": os.environ["AWS_SECRET_ACCESS_KEY"],
+        "region_name": os.getenv("AWS_S3_REGION_NAME", "us-east-1"),
+        "endpoint_url": os.getenv("AWS_S3_ENDPOINT_URL") or None,
+        "default_acl": None, "file_overwrite": False, "querystring_auth": True,
+    }}
+if env_bool("DJANGO_TRUST_PROXY"):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+if not DEBUG and SECRET_KEY == "unsafe-development-key-change-me":
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured("Set a unique DJANGO_SECRET_KEY before disabling debug.")
+if PROCESSING_MODE not in {"manual", "celery"}:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured("PROCESSING_MODE must be manual or celery.")

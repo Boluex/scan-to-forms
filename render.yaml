@@ -1,0 +1,86 @@
+# Controlled beta: real operator transcription, no mocked or background OCR.
+# Supply private object storage and SMTP before accepting customer data.
+services:
+  - type: web
+    name: scantoforms-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile.render
+    dockerContext: ./backend
+    healthCheckPath: /health/
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: 'false'
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: DJANGO_TRUST_PROXY
+        value: 'true'
+      - key: DJANGO_CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PROCESSING_MODE
+        value: manual
+      - key: TEST_DEPLOYMENT
+        value: 'true'
+      - key: ENABLE_LEGACY_WORKSPACE
+        value: 'false'
+      - key: ENABLE_PAYSTACK
+        value: 'false'
+      - key: MANUAL_BANK_TRANSFER_ENABLED
+        value: 'true'
+      - key: BANK_NAME
+        sync: false
+      - key: BANK_ACCOUNT_NAME
+        sync: false
+      - key: BANK_ACCOUNT_NUMBER
+        sync: false
+      - key: DIGITIZATION_PRICE_PER_RESPONDENT_NGN
+        sync: false
+      - key: SYNTHETIC_PRICE_PER_RESPONSE_NGN
+        sync: false
+      - key: USE_S3_STORAGE
+        value: 'true'
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_REGION_NAME
+        sync: false
+      - key: AWS_S3_ENDPOINT_URL
+        sync: false
+      - key: EMAIL_BACKEND
+        value: django.core.mail.backends.smtp.EmailBackend
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: '587'
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: EMAIL_USE_TLS
+        value: 'true'
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+  - type: web
+    name: scantoforms-web
+    runtime: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- --hostname 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
