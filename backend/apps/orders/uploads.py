@@ -109,7 +109,5 @@ def delete_upload(order, document, actor):
         )
     if order.status == "AWAITING_PAYMENT":
         transition(order, "UPLOADING", actor)
-    name, storage = document.file.name, document.file.storage
     record_audit(actor=actor, action="order.file_removed", target=document)
     document.delete()
-    transaction.on_commit(lambda: storage.delete(name))

@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.db import transaction
-from django.http import FileResponse, HttpResponse
+from django.http import HttpResponse
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import decorators, permissions, status, throttling, viewsets
@@ -11,6 +11,7 @@ from rest_framework.response import Response as APIResponse
 from apps.botlab.models import BotRun
 from apps.botlab.views import synthetic_csv
 from apps.documents.models import DocumentPage
+from apps.documents.storage import source_response
 from apps.exports.services import render_csv, render_xlsx
 from apps.googleforms.serializers import AppsScriptCreateSerializer, normalize_form_id
 from apps.questionnaires.integrity import final_errors, invalidate_response
@@ -131,11 +132,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     def upload_file(self, request, reference=None, document_id=None):
         order = self.get_object()
         document = get_object_or_404(order.uploads, pk=document_id)
-        return FileResponse(
-            document.file.open("rb"),
-            content_type=document.content_type,
-            filename=document.original_filename,
-        )
+        return source_response(document)
 
     @decorators.action(detail=True, methods=["post"], url_path="submit")
     def submit(self, request, reference=None):
@@ -169,6 +166,10 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     @decorators.action(detail=True, methods=["post"])
     def process(self, request, reference=None):
         return self.result(services.start_processing(self.get_object(), request.user))
+
+    @decorators.action(detail=True, methods=["post"], url_path="retry-processing")
+    def retry_processing(self, request, reference=None):
+        return self.result(services.retry_processing(self.get_object(), request.user))
 
     @decorators.action(detail=True, methods=["get", "post"], url_path="schema")
     def questionnaire_schema(self, request, reference=None):

@@ -2,7 +2,15 @@ from django.contrib import admin
 
 from apps.core.admin import InspectOnlyAdmin
 
-from .models import DocumentPage, ExtractionResult, OCRJob, OCRRegion, OCRResult, UploadedDocument
+from .models import (
+    DocumentPage,
+    ExtractionResult,
+    OCRJob,
+    OCRRegion,
+    OCRResult,
+    StorageDeletion,
+    UploadedDocument,
+)
 
 
 @admin.register(UploadedDocument)
@@ -36,3 +44,4 @@ class DocumentPageAdmin(InspectOnlyAdmin):
 admin.site.register(OCRResult, InspectOnlyAdmin)
 admin.site.register(OCRRegion, InspectOnlyAdmin)
 admin.site.register(ExtractionResult, InspectOnlyAdmin)
+admin.site.register(StorageDeletion, InspectOnlyAdmin)

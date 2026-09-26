@@ -1,5 +1,4 @@
 from django.db import transaction
-from django.http import FileResponse
 from rest_framework import decorators, mixins, status, throttling, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -22,6 +21,7 @@ from .services.grouping import (
     refresh_response_validation,
     update_batch_status,
 )
+from .storage import source_response
 from .tasks import process_document
 
 
@@ -71,10 +71,7 @@ class UploadedDocumentViewSet(
         response_id = document.response_id
         batch_id = document.batch_id
         record_audit(actor=request.user, action="document.deleted", target=document, request=request)
-        storage = document.file.storage
-        name = document.file.name
         response = super().destroy(request, *args, **kwargs)
-        transaction.on_commit(lambda: storage.delete(name))
         if response_id:
             invalidate_response(QuestionnaireResponse.objects.get(pk=response_id), recheck_answers=True)
             def regroup_after_delete():
@@ -88,15 +85,16 @@ class UploadedDocumentViewSet(
     @decorators.action(detail=True, methods=("get",), url_path="file")
     def file(self, request, pk=None):
         document = self.get_object()
-        handle = document.file.open("rb")
-        return FileResponse(handle, as_attachment=False, filename=document.original_filename, content_type=document.content_type)
+        return source_response(document)
 
     @decorators.action(detail=True, methods=("post",))
     def retry(self, request, pk=None):
         document = self.get_object()
         if document.order_id:
-            from apps.orders.services import require_paid
-            require_paid(document.order)
+            from apps.orders.services import retry_processing
+            retry_processing(document.order, request.user, document_id=document.pk)
+            document.refresh_from_db()
+            return Response(self.get_serializer(document).data, status=status.HTTP_202_ACCEPTED)
         if not hasattr(document, "ocr_job"):
             raise ValidationError("Start processing through the order first.")
         if document.ocr_job.status not in (OCRJob.Status.FAILED, OCRJob.Status.NEEDS_REVIEW):

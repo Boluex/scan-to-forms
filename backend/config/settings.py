@@ -5,8 +5,10 @@ from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
 
+from .connections import secure_redis_url
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR.parent / ".env")
+load_dotenv(os.getenv("SCANTO_FORMS_ENV_FILE", str(BASE_DIR.parent / ".env")))
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -144,12 +146,16 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "ScanToForms <noreply@local
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_TIMEOUT_SECONDS = float(os.getenv("RESEND_TIMEOUT_SECONDS", "15"))
 
-CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = secure_redis_url(
+    os.getenv("REDIS_URL", "redis://localhost:6379/0"), os.getenv("REDIS_SSL_CA_CERTS", "")
+)
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_TASK_TIME_LIMIT = 600
 CELERY_TASK_SOFT_TIME_LIMIT = 540
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+OCR_STALE_AFTER_SECONDS = max(660, int(os.getenv("OCR_STALE_AFTER_SECONDS", "900")))
 
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "100"))
@@ -218,7 +224,8 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
-if env_bool("USE_S3_STORAGE"):
+OBJECT_STORAGE_ENABLED = env_bool("OBJECT_STORAGE_ENABLED", env_bool("USE_S3_STORAGE"))
+if OBJECT_STORAGE_ENABLED:
     STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage", "OPTIONS": {
         "bucket_name": os.environ["AWS_STORAGE_BUCKET_NAME"],
         "access_key": os.environ["AWS_ACCESS_KEY_ID"],
@@ -226,6 +233,10 @@ if env_bool("USE_S3_STORAGE"):
         "region_name": os.getenv("AWS_S3_REGION_NAME", "us-east-1"),
         "endpoint_url": os.getenv("AWS_S3_ENDPOINT_URL") or None,
         "default_acl": None, "file_overwrite": False, "querystring_auth": True,
+        "signature_version": "s3v4",
+        "addressing_style": os.getenv("AWS_S3_ADDRESSING_STYLE", "path"),
+        "max_memory_size": 1024 * 1024,
+        "object_parameters": {"CacheControl": "private, no-store"},
     }}
 if env_bool("DJANGO_TRUST_PROXY"):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

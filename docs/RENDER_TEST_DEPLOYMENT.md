@@ -2,6 +2,10 @@
 
 This runbook supersedes the earlier paid-worker preparation. The owner has authorized **free resources only**. Do not upgrade a plan, attach a paid disk, or create a paid background worker without asking first. This is a disposable workflow test, not an accepted customer-data deployment. See [the live acceptance report](RENDER_LIVE_ACCEPTANCE_REPORT.md).
 
+## Optional owner-hosted worker and private storage
+
+The application now supports private S3-compatible storage and an external Ubuntu Celery worker without changing this free blueprint. Follow [R2 setup](R2_STORAGE_SETUP.md) and [remote worker setup](REMOTE_OCR_WORKER.md). These are prepared capabilities, not connected services or live acceptance evidence. `OBJECT_STORAGE_ENABLED=true` explicitly overrides the older `USE_S3_STORAGE=false` blueprint default once the owner supplies real bucket secrets. Keep the current warnings until the corresponding persistence/worker tests pass.
+
 ## Exact deployment scope
 
 `render.yaml` declares project **ScanToForms Beta**, environment **Beta**:
@@ -87,7 +91,7 @@ Source downloads retain existing authentication and owner/staff checks. Do not p
 
 Only disposable test files are permitted. Keep originals locally and assume re-upload may be necessary. A controlled restart can demonstrate the limitation, but does not certify persistence even if a particular file happens to survive once. Record the persistence acceptance status as **BLOCKED BY FREE INFRASTRUCTURE**, never PASSED.
 
-A private shared S3-compatible bucket is needed before accepting irreplaceable/customer questionnaires and before a separate worker can read API uploads reliably. No provider or bucket has been added. Cloudflare R2 can be evaluated later; first present its current free-tier terms, required account/billing setup, privacy controls and configuration to the owner. Do not assume an account or silently enable a provider.
+A private shared S3-compatible bucket is needed before accepting irreplaceable/customer questionnaires and before a separate worker can read API uploads reliably. S3-compatible application support has been added, but no provider account or bucket has been provisioned. Follow the R2 guide above for owner setup, billing review and validation; do not assume an account or silently enable a provider.
 
 ## What can be accepted at $0
 
@@ -103,7 +107,7 @@ Result pages and Google instructions may be inspected, but final CSV/XLSX/script
 
 ## Real OCR and Google gates
 
-No clean shared-storage path currently exists for a local worker to consume this deployment's ephemeral uploads. A future test-only local Celery worker could use the existing broker/database plus private shared storage, but would need network access controls and reliable object access. That proposal must be explained and agreed before implementation; it would still be **local worker execution**, not a Render worker pass. No tunnel, inline worker or other workaround is implemented now.
+The documented external worker can consume API uploads once the owner configures the same private object storage, direct database and secure queue on both sides. Until those accounts/connections and real job execution are validated, live OCR remains blocked. Report a successful run as **Render API with Ubuntu worker execution**, not a Render-hosted worker pass. No tunnel, inline worker or other workaround is implemented.
 
 Keep Google acceptance **TESTING REQUIRED**. Do not request the disposable Form URL until an eligible dataset/script and all prerequisites are ready. At that point say **GOOGLE FORM ACCEPTANCE TEST READY**, ask for the Form EDIT URL, and let the owner run/authorize the generated script. Do not request Google credentials or add OAuth. Record exact expected/actual counts, title/option mapping, text/multiple-choice/checkbox/scale behavior and duplicate prevention. Synthetic Google submission remains blocked.
 

@@ -5,3 +5,5 @@ class DocumentsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.documents"
 
+    def ready(self):
+        from . import cleanup  # noqa: F401

@@ -1,4 +1,6 @@
 import secrets
+from contextlib import ExitStack
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
@@ -28,7 +30,7 @@ TRANSITIONS = {
     "PAYMENT_SUBMITTED": {"PAID", "AWAITING_PAYMENT"},
     "PAID": {"QUEUED", "PROCESSING", "NEEDS_REVIEW"},
     "QUEUED": {"PROCESSING", "FAILED", "NEEDS_REVIEW"},
-    "PROCESSING": {"NEEDS_REVIEW", "FAILED", "READY"},
+    "PROCESSING": {"QUEUED", "NEEDS_REVIEW", "FAILED", "READY"},
     "NEEDS_REVIEW": {"QUEUED", "PROCESSING", "READY", "FAILED"},
     "READY": {"COMPLETED", "NEEDS_REVIEW"},
     "COMPLETED": {"NEEDS_REVIEW"},
@@ -372,6 +374,60 @@ def dispatch_jobs(order_id, jobs, task):
                 order, None, "queue_failed", note="Broker delivery failed; operator may retry."
             )
             notify(order, "NEEDS_ATTENTION", f"{order.reference}: processing needs attention")
+
+
+@transaction.atomic
+def retry_processing(order, actor, document_id=None):
+    """Republish durable pending jobs; never take an active execution lock away."""
+    from apps.documents.execution import execution_lock
+    from apps.documents.models import DocumentPage, OCRJob, UploadedDocument
+    from apps.documents.tasks import process_document
+    from apps.questionnaires.integrity import invalidate_response
+
+    operator(actor)
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    require_paid(order)
+    if settings.PROCESSING_MODE != "celery" or order.service_type != "DIGITIZATION":
+        raise ValidationError("OCR recovery requires a digitization order in Celery mode.")
+    if order.status not in {"PAID", "QUEUED", "PROCESSING", "FAILED", "NEEDS_REVIEW"}:
+        raise ValidationError("This order cannot retry processing.")
+    jobs = OCRJob.objects.filter(document__order=order)
+    if document_id:
+        jobs = jobs.filter(document_id=document_id)
+    cutoff = timezone.now() - timedelta(seconds=settings.OCR_STALE_AFTER_SECONDS)
+    queued = []
+    with ExitStack() as locks:
+        for candidate in jobs.order_by("pk"):
+            if candidate.status in {"COMPLETED", "NEEDS_REVIEW"}:
+                continue
+            if candidate.status == "PROCESSING" and (not candidate.started_at or candidate.started_at > cutoff):
+                continue
+            if not locks.enter_context(execution_lock(candidate.pk)):
+                continue
+            job = OCRJob.objects.select_for_update().get(pk=candidate.pk)
+            if job.status in {"COMPLETED", "NEEDS_REVIEW"}:
+                continue
+            if job.status == "PROCESSING" and (not job.started_at or job.started_at > cutoff):
+                continue
+            job.status = "QUEUED"
+            job.execution_token = None
+            job.finished_at = None
+            job.error_code = ""
+            job.error_message = ""
+            job.save(update_fields=["status", "execution_token", "finished_at", "error_code", "error_message", "updated_at"])
+            UploadedDocument.objects.filter(pk=job.document_id).update(status="QUEUED", failure_reason="")
+            DocumentPage.objects.filter(document_id=job.document_id).update(processing_status="PENDING")
+            if job.document.response_id:
+                invalidate_response(job.document.response)
+            queued.append(str(job.pk))
+        if not queued:
+            raise ValidationError("No eligible jobs: running/reviewed/completed jobs are not restarted.")
+        running = OCRJob.objects.filter(document__order=order, status="PROCESSING").exists()
+        if not running and order.status != "QUEUED":
+            transition(order, "QUEUED", actor)
+        log_event(order, actor, "processing_retried", metadata={"job_ids": queued})
+        transaction.on_commit(lambda: dispatch_jobs(order.pk, queued, process_document))
+    return order
 
 
 @transaction.atomic

@@ -1,7 +1,5 @@
-import shutil
-import tempfile
 import time
-from pathlib import Path
+import uuid
 
 from celery import shared_task
 from django.conf import settings
@@ -12,6 +10,7 @@ from django.utils import timezone
 from apps.notifications.models import Notification
 from apps.questionnaires.models import QuestionnaireVersion, Response
 
+from .execution import execution_lock
 from .models import DocumentPage, ExtractionResult, OCRJob, OCRRegion, OCRResult, UploadedDocument
 from .services.grouping import (
     aggregate_response_answers,
@@ -24,6 +23,7 @@ from .services.grouping import (
 )
 from .services.ocr import extract_document
 from .services.parser import PARSER_VERSION, detect_schema, persist_detected_schema
+from .storage import materialize_source_file
 
 
 def _page_regions(page_output, page):
@@ -46,6 +46,13 @@ def _page_regions(page_output, page):
 
 @shared_task(bind=True, autoretry_for=(OSError,), retry_backoff=True, max_retries=2)
 def process_document(self, job_id):
+    with execution_lock(job_id) as acquired:
+        if not acquired:
+            return None
+        return _process_document(job_id)
+
+
+def _process_document(job_id):
     started = time.monotonic()
     job = OCRJob.objects.select_related(
         "document__owner",
@@ -54,10 +61,12 @@ def process_document(self, job_id):
         "document__response",
     ).get(pk=job_id)
     document = job.document
+    if job.status not in {OCRJob.Status.QUEUED, OCRJob.Status.FAILED}:
+        return str(document.id)
     if document.order_id:
         from apps.orders.services import document_started
         document_started(document)
-    claimed = OCRJob.objects.filter(pk=job.pk, status__in=[OCRJob.Status.QUEUED, OCRJob.Status.FAILED]).update(status=OCRJob.Status.PROCESSING, started_at=timezone.now(), attempts=F('attempts') + 1)
+    claimed = OCRJob.objects.filter(pk=job.pk, status__in=[OCRJob.Status.QUEUED, OCRJob.Status.FAILED]).update(status=OCRJob.Status.PROCESSING, started_at=timezone.now(), attempts=F('attempts') + 1, execution_token=uuid.uuid4())
     if not claimed:
         return str(document.id)
     job.refresh_from_db()
@@ -88,15 +97,14 @@ def process_document(self, job_id):
     warnings = []
     confidence = None
     try:
-        with tempfile.TemporaryDirectory(prefix="scanforms-ocr-") as directory:
-            local_path = Path(directory) / ("input" + Path(document.original_filename).suffix.lower())
-            with document.file.open("rb") as source, local_path.open("wb") as destination:
-                shutil.copyfileobj(source, destination)
+        with materialize_source_file(document) as local_path:
             output = extract_document(local_path, settings.OCR_ENGINE)
         all_regions = []
         confidence_values = []
         processed_page_numbers = set()
         with transaction.atomic():
+            if not OCRJob.objects.select_for_update().filter(pk=job.pk, execution_token=job.execution_token, status="PROCESSING").exists():
+                return str(document.id)
             job.results.all().delete()
             for page_output in output.pages:
                 processed_page_numbers.add(page_output.page_number)
@@ -208,52 +216,56 @@ def process_document(self, job_id):
         job.error_message = str(exc)[:4000]
         document.status = UploadedDocument.Status.FAILED
         document.failure_reason = "Document processing failed. Review the job error or retry."
-        document.pages.update(processing_status=DocumentPage.ProcessingStatus.FAILED)
-        Notification.objects.create(
-            user=document.owner,
-            kind=Notification.Kind.OCR_FAILED,
-            title="Questionnaire processing failed",
-            message=f"We could not process {document.original_filename}.",
-            data={"document_id": str(document.id), "response_id": str(response_id) if response_id else None},
-        )
         raise
     finally:
-        job.finished_at = timezone.now()
-        job.processing_ms = int((time.monotonic() - started) * 1000)
-        job.save(
-            update_fields=(
-                "status",
-                "engine",
-                "model_version",
-                "finished_at",
-                "processing_ms",
-                "error_code",
-                "error_message",
-                "updated_at",
-            )
-        )
-        document.save(update_fields=("status", "failure_reason", "updated_at"))
-        if response_id:
-            refresh_response_validation(response_id)
-            response, aggregated = aggregate_response_answers(response_id, force=True)
-            update_batch_status(response.batch_id)
-            if succeeded and aggregated:
-                Notification.objects.create(
-                    user=document.owner,
-                    kind=Notification.Kind.REVIEW_REQUIRED,
-                    title="Respondent response ready for review",
-                    message=f"{response.respondent_reference} has finished page processing.",
-                    data={"document_id": str(document.id), "response_id": str(response.id)},
+        with transaction.atomic():
+            current = OCRJob.objects.select_for_update().filter(pk=job.pk, execution_token=job.execution_token, status="PROCESSING").exists()
+            if current:
+                if not succeeded:
+                    document.pages.update(processing_status=DocumentPage.ProcessingStatus.FAILED)
+                    Notification.objects.create(
+                        user=document.owner,
+                        kind=Notification.Kind.OCR_FAILED,
+                        title="Questionnaire processing failed",
+                        message=f"We could not process {document.original_filename}.",
+                        data={"document_id": str(document.id), "response_id": str(response_id) if response_id else None},
+                    )
+                job.finished_at = timezone.now()
+                job.processing_ms = int((time.monotonic() - started) * 1000)
+                job.save(
+                    update_fields=(
+                        "status",
+                        "engine",
+                        "model_version",
+                        "finished_at",
+                        "processing_ms",
+                        "error_code",
+                        "error_message",
+                        "updated_at",
+                    )
                 )
-        elif succeeded:
-            Notification.objects.create(
-                user=document.owner,
-                kind=Notification.Kind.REVIEW_REQUIRED,
-                title="Questionnaire template ready for review",
-                message=f"{document.original_filename} has finished processing.",
-                data={"document_id": str(document.id), **structured},
-            )
-        if document.order_id:
-            from apps.orders.services import document_finished
-            document_finished(document)
+                document.save(update_fields=("status", "failure_reason", "updated_at"))
+                if response_id:
+                    refresh_response_validation(response_id)
+                    response, aggregated = aggregate_response_answers(response_id, force=True)
+                    update_batch_status(response.batch_id)
+                    if succeeded and aggregated:
+                        Notification.objects.create(
+                            user=document.owner,
+                            kind=Notification.Kind.REVIEW_REQUIRED,
+                            title="Respondent response ready for review",
+                            message=f"{response.respondent_reference} has finished page processing.",
+                            data={"document_id": str(document.id), "response_id": str(response.id)},
+                        )
+                elif succeeded:
+                    Notification.objects.create(
+                        user=document.owner,
+                        kind=Notification.Kind.REVIEW_REQUIRED,
+                        title="Questionnaire template ready for review",
+                        message=f"{document.original_filename} has finished processing.",
+                        data={"document_id": str(document.id), **structured},
+                    )
+                if document.order_id:
+                    from apps.orders.services import document_finished
+                    document_finished(document)
     return str(document.id)

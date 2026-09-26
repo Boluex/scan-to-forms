@@ -21,7 +21,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ("service_type", "status", "payment_status")
     search_fields = ("reference", "title", "user__email", "payment_reference")
     readonly_fields = tuple(f.name for f in Order._meta.fields) + ("workspace_link",)
-    actions = ("verify", "reject", "process", "ready", "complete")
+    actions = ("verify", "reject", "process", "retry_processing", "ready", "complete")
 
     def has_add_permission(self, request):
         return False
@@ -62,6 +62,10 @@ class OrderAdmin(admin.ModelAdmin):
     @admin.action(description="Start paid order processing")
     def process(self, request, queryset):
         self.apply(request, queryset, services.start_processing)
+
+    @admin.action(description="RETRY PROCESSING (eligible queued/failed/abandoned OCR jobs)")
+    def retry_processing(self, request, queryset):
+        self.apply(request, queryset, services.retry_processing)
 
     @admin.action(description="Release reviewed results (READY)")
     def ready(self, request, queryset):

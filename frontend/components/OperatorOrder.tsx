@@ -197,6 +197,12 @@ export default function OperatorOrder({
                 : "Queue processing / retry failed jobs"}
             </button>
           )}
+          {order.processing_mode === "celery" && order.service_type === "DIGITIZATION" &&
+            ["QUEUED", "PROCESSING", "FAILED", "NEEDS_REVIEW"].includes(order.status) && (
+              <button className="btn" disabled={busy} onClick={() => void action("retry-processing")}>
+                Retry processing (pending or abandoned jobs)
+              </button>
+            )}
           {order.service_type === "SYNTHETIC_DATA" && (
             <>
               <p>

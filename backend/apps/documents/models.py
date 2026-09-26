@@ -9,8 +9,11 @@ from apps.core.models import TimeStampedModel
 
 
 def secure_upload_path(instance, filename):
-    extension = Path(filename).suffix.lower()
-    return f"questionnaires/{instance.owner_id}/{uuid.uuid4().hex}{extension}"
+    extension = Path(filename.replace("\\", "/")).suffix.lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".pdf"}:
+        extension = ".bin"
+    scope = f"orders/{instance.order_id}" if instance.order_id else "questionnaires"
+    return f"users/{instance.owner_id}/{scope}/documents/{instance.id}/{uuid.uuid4().hex}{extension}"
 
 
 class UploadedDocument(TimeStampedModel):
@@ -136,6 +139,7 @@ class OCRJob(TimeStampedModel):
     processing_ms = models.PositiveIntegerField(null=True, blank=True)
     error_code = models.CharField(max_length=80, blank=True)
     error_message = models.TextField(blank=True)
+    execution_token = models.UUIDField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ("-created_at",)
@@ -171,3 +175,12 @@ class ExtractionResult(TimeStampedModel):
     confidence = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
     structured_output = models.JSONField(default=dict, blank=True)
     warnings = models.JSONField(default=list, blank=True)
+
+
+class StorageDeletion(TimeStampedModel):
+    """Durable cleanup intent; retained until storage confirms deletion."""
+
+    name = models.CharField(max_length=500)
+    storage_signature = models.CharField(max_length=64)
+    attempts = models.PositiveIntegerField(default=0)
+    error_code = models.CharField(max_length=100, blank=True)
