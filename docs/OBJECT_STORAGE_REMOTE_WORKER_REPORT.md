@@ -1,5 +1,7 @@
 # Private storage and remote OCR worker implementation report
 
+> **Historical report — deployment instructions superseded September 28, 2026.** Render-managed database/Key Value references below describe the old proposal only. Use [the current Neon/Upstash/R2/Resend setup](RENDER_SETUP.md) and [current acceptance checklist](RENDER_TEST_DEPLOYMENT.md). These historical local results do not establish live acceptance of the new topology.
+
 2026-09-26. Baseline: `2b4ad8a`. Scope: private shared storage and external Celery OCR support only. **The Render → R2 → Ubuntu → Render PostgreSQL acceptance path remains REQUIRES OWNER ACTION.** No cloud resources were provisioned, no live credentials were available, and no customer data was migrated.
 
 ## Implementation

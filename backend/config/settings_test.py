@@ -1,3 +1,5 @@
+import dj_database_url
+
 from .settings import *  # noqa: F403
 
 DATABASES = {"default": dj_database_url.parse(os.environ["TEST_DATABASE_URL"]) if os.getenv("TEST_DATABASE_URL") else {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}  # noqa: F405

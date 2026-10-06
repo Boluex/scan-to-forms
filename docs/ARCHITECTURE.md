@@ -58,3 +58,5 @@ Page grouping does not call an OCR engine. It can consume normalized text produc
 ## Deployment shape
 
 The Compose environment represents the process boundaries: frontend, API, PostgreSQL, Redis, and worker. Uploaded files use a Django storage backend, allowing local storage to be swapped for S3-compatible storage without changing domain models.
+
+The controlled beta uses Render Free web services for Next.js and Django, external Neon Free PostgreSQL (direct verified-TLS connections), Upstash Free Redis (native TCP/TLS), private Cloudflare R2 Standard storage, and Resend HTTPS email. The Ubuntu Celery worker shares the API's database, queue and bucket, runs PaddleOCR with Tesseract fallback at concurrency 1, and stops between processing batches. PostgreSQL remains authoritative for recovery; Redis holds transport and temporary results. Render provisions no managed data services, worker or disk. See [the setup checklist and limits](RENDER_SETUP.md).

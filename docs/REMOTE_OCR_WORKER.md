@@ -1,6 +1,6 @@
-# Ubuntu OCR worker for the Render beta
+# Ubuntu OCR worker for the external-services beta
 
-Status: **prepared and tested locally; Render → R2 → Ubuntu acceptance REQUIRES OWNER ACTION**. This is the existing Celery worker running on your computer, not a Render Background Worker. No paid Render service or inline API worker is introduced. Availability depends on the computer, its network and your operating schedule; there is no 24/7 processing promise.
+Status: **ZERO-BUDGET / FREE-TIER CONTROLLED BETA; actual Neon / Upstash / R2 connectivity awaits credentials and live testing**. This is the existing Celery worker running on your Ubuntu computer. Render hosts only the API and frontend. Start the worker when paid/queued work exists, process the batch, then stop it. Availability depends on the computer and network; there is no 24/7 processing promise.
 
 ## Prerequisites and connection checklist
 
@@ -10,8 +10,10 @@ Use the same repository revision as the API. Complete [private R2 setup](R2_STOR
 | --- | --- |
 | `DJANGO_SECRET_KEY` | Existing API Django secret, supplied privately |
 | `DJANGO_DEBUG` | `false` |
-| `DATABASE_URL` | Render **external direct PostgreSQL** URL, with certificate/hostname verification |
-| `REDIS_URL` | Same Render Key Value instance/database as the API, using its **external `rediss://`** authenticated URL |
+| `EXTERNAL_SERVICES_REQUIRED` | `true`, same as the Render API |
+| `DATABASE_URL` | Same **direct Neon PostgreSQL** URL as API; no `-pooler` hostname |
+| `DATABASE_SSL_ROOT_CERT` | Optional trusted CA bundle path; blank uses the system CA bundle |
+| `REDIS_URL` | Same **Upstash native authenticated `rediss://` URL**, database `/0`, as API |
 | `REDIS_SSL_CA_CERTS` | Optional absolute path to a trusted CA PEM if system roots are insufficient; blank normally |
 | `OBJECT_STORAGE_ENABLED` | `true` |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Bucket-scoped credentials |
@@ -23,13 +25,13 @@ Use the same repository revision as the API. Complete [private R2 setup](R2_STOR
 | `OCR_STALE_AFTER_SECONDS` | `900`; code enforces at least 660, above the 600-second task hard limit |
 | `ENABLE_LEGACY_WORKSPACE`, `ENABLE_PAYSTACK`, `TEST_DEPLOYMENT` | `false`, `false`, `true` |
 
-Keep API bank/pricing/email/frontend settings in Render. They are not needed to process existing OCR jobs. Keep the API in Celery mode with eager execution disabled. Its existing internal database/queue connections may remain; Ubuntu must use the corresponding external connections, never unreachable Render internal hostnames.
+Keep API bank/pricing/email/frontend settings in Render. They are not needed to process existing OCR jobs. Keep the API in Celery mode with eager execution disabled. Copy the same external provider URLs into the API and worker; there are no Render-internal database/queue connections in this architecture.
 
-In Render, enable external database and Key Value access only for your current public IP (`/32` for a single IPv4 address). Update it if your ISP changes the address; do not use `0.0.0.0/0` as a workaround. External Key Value access is disabled until allowed and requires authenticated TLS. See [Render Key Value connections](https://render.com/docs/key-value).
+Complete [Neon setup](NEON_SETUP.md) and [Upstash setup](UPSTASH_REDIS_SETUP.md). Verify the endpoint/database names match privately on both sides. Do not print full connection URLs or put them in the frontend. Optional provider network controls depend on the plan; do not purchase an add-on for this beta.
 
-For PostgreSQL, preserve the provider hostname and use `sslmode=verify-full` with an appropriate trusted root. On Ubuntu the system CA path is usually `/etc/ssl/certs/ca-certificates.crt`; add `sslrootcert` to the URL's query if needed. Add query parameters with `?` or `&` as appropriate and keep the URL private. Do not replace the host with a cached IP or disable verification after a certificate error. See [Render PostgreSQL connections](https://render.com/docs/postgresql-creating-connecting).
+For PostgreSQL, preserve the direct Neon hostname. Application settings upgrade `sslmode=require` to `verify-full` with a trusted system CA bundle; explicit TLS downgrades are rejected. On Ubuntu the CA path is usually `/etc/ssl/certs/ca-certificates.crt`. A custom path must also exist inside the container. Do not replace the hostname with an IP or disable verification after a certificate error.
 
-**Use a direct database connection, not transaction-pooled PgBouncer.** OCR/recovery exclusivity uses PostgreSQL session advisory locks. A transaction pool may switch the physical connection between transactions and cannot provide that guarantee. See [Render pooling behavior](https://render.com/docs/postgresql-connection-pooling).
+**Use a direct database connection, not transaction-pooled PgBouncer.** OCR/recovery exclusivity uses PostgreSQL session advisory locks. A transaction pool may switch the physical connection between transactions and cannot provide that guarantee. See [Neon pooling behavior](https://neon.com/docs/connect/connection-pooling).
 
 For `rediss://`, application configuration enforces certificate and hostname verification for both the broker and result backend; weak URL overrides are rejected. A custom CA path must exist inside the container if using Docker. Never set `ssl_cert_reqs=none` or disable verification globally. See [Celery TLS configuration](https://docs.celeryq.dev/en/stable/userguide/configuration.html#broker-use-ssl).
 
@@ -50,7 +52,9 @@ docker run -d --name scantoforms-ocr-worker --stop-timeout 660 \
   scantoforms-ocr-worker
 ```
 
-The image runs non-root with concurrency 1, PaddleOCR/Tesseract/OpenCV dependencies and the existing prefork worker. The named volume holds downloaded OCR models, not questionnaire originals. Initial model downloads need network access and disk; first OCR is slower. Do not mount a host `.env` inside the image, expose worker ports, or install an unrelated queue/DB locally for this remote deployment.
+The image runs non-root with concurrency 1, PaddleOCR/Tesseract/OpenCV dependencies and the existing prefork worker. It has no automatic restart policy. Run it only when work is waiting. The named volume holds downloaded OCR models, not questionnaire originals. Initial model downloads need network access and disk; first OCR is slower. Do not mount a host `.env` inside the image, expose worker ports, or install an unrelated queue/DB locally for this deployment.
+
+For lower coordination traffic, append `celery -A config worker -l info --concurrency=1 --without-gossip --without-mingle --without-heartbeat` after the image name in `docker run`. This still polls Redis. Do not run Flower, Beat or periodic inspect/keep-alive loops for this beta. Check Upstash usage before and after each batch.
 
 Inspect registration and normal logs:
 
@@ -77,7 +81,7 @@ Stop safely with a warm shutdown:
 docker stop --time 660 scantoforms-ocr-worker
 ```
 
-Allow the current bounded task to finish; avoid forcibly killing the container. After a code update, build the new image, stop/remove the old container, then repeat the run command. Keep the model volume. Do not start old and new revisions against incompatible migrations.
+Allow the current bounded task to finish; avoid forcibly killing the container. For the next queued batch, run `docker start scantoforms-ocr-worker`; it reuses the saved environment. If secrets/settings or code change, stop/remove only this worker container and recreate it with the updated environment/image. Keep the model volume. Do not start old and new revisions against incompatible migrations.
 
 ## Native Python alternative
 
@@ -98,17 +102,17 @@ If the Ubuntu release lacks this Python version/venv support, use the Docker opt
 
 ## Offline behavior and operator recovery
 
-PostgreSQL retains orders, payment state, documents and OCR jobs when the worker is offline. Redis is only transport/result cache; free Key Value loss can remove messages. A queued order is not evidence that its message still exists.
+Neon PostgreSQL retains orders, payment state, documents and OCR jobs when the worker is offline. Upstash Redis is transport/result cache; lost messages, quota exhaustion or an outage must not erase business state. Celery results expire after one hour. A queued order is not evidence that its message still exists.
 
 After reconnecting the worker, staff can use **RETRY PROCESSING** in the order operator panel or Django Admin; the equivalent authenticated staff API is `POST /api/v1/orders/{reference}/retry-processing/`. It requires verified payment and a digitization order in Celery mode. Eligible queued/failed jobs are republished. A PROCESSING job must be older than the stale threshold and have no active execution lock. Completed or review-ready jobs are skipped. No eligible work returns a validation error. Recovery is audited.
 
 An execution token fences late writes; PostgreSQL locks exclude concurrent processing of the same job, including duplicate queue messages. SQLite is only a single-worker-process development fallback. A PROCESSING job without a start timestamp is not automatically reset: investigate it instead of guessing that execution stopped. Recovering a response invalidates confirmation and preserves human answer precedence. Review again before delivery.
 
-Recovery does not revive expired databases or missing objects. Free Render database lifetime/quotas remain constraints; record the expiration date and arrange an approved durable database before keeping customer data. If source deletion was deferred during a storage outage, run `python manage.py cleanup_source_files --limit 100` with the same database/storage configuration.
+Recovery does not recreate a deleted Neon database or missing R2 objects. Provider quotas and account access remain constraints. Pause work instead of upgrading if limits are reached. The existing recovery route covers digitization OCR, not synthetic-job recovery; no new workflow is added here. If source deletion was deferred during a storage outage, run `python manage.py cleanup_source_files --limit 100` with the same database/storage configuration.
 
 ## Required live acceptance record
 
-Keep warnings and acceptance status unchanged until evidence exists. With owner-authorized Render, R2 and Ubuntu connections:
+Keep the controlled-beta notice and record actual acceptance evidence. With configured Render, Neon, Upstash, R2 and Ubuntu connections:
 
 1. Create customers A/B and a disposable printed questionnaire. Customer A creates a 2-respondent × 4-page digitization order and uploads 8 ordered source pages. Confirm private bucket keys and upload counts.
 2. Confirm upload/payment claim do not run OCR. PAYMENT_SUBMITTED is still unpaid; customer verification/process/retry attempts must fail. Staff records verification, prepares/verifies schema and starts processing.

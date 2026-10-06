@@ -2,10 +2,10 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
-from .connections import secure_redis_url
+from .connections import database_config, secure_redis_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(os.getenv("SCANTO_FORMS_ENV_FILE", str(BASE_DIR.parent / ".env")))
@@ -73,13 +73,12 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=60,
-        conn_health_checks=True,
-    )
-}
+EXTERNAL_SERVICES_REQUIRED = env_bool("EXTERNAL_SERVICES_REQUIRED")
+DATABASES = {"default": database_config(
+    os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
+    require_tls=EXTERNAL_SERVICES_REQUIRED,
+    ca_file=os.getenv("DATABASE_SSL_ROOT_CERT", ""),
+)}
 
 AUTH_USER_MODEL = "accounts.User"
 AUTH_PASSWORD_VALIDATORS = [
@@ -147,9 +146,11 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_TIMEOUT_SECONDS = float(os.getenv("RESEND_TIMEOUT_SECONDS", "15"))
 
 CELERY_BROKER_URL = secure_redis_url(
-    os.getenv("REDIS_URL", "redis://localhost:6379/0"), os.getenv("REDIS_SSL_CA_CERTS", "")
+    os.getenv("REDIS_URL", "redis://localhost:6379/0"), os.getenv("REDIS_SSL_CA_CERTS", ""),
+    require_tls=EXTERNAL_SERVICES_REQUIRED,
 )
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+CELERY_RESULT_EXPIRES = 3600  # Transport results are temporary; business state is in PostgreSQL.
 CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_TASK_TIME_LIMIT = 600
@@ -225,6 +226,14 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 OBJECT_STORAGE_ENABLED = env_bool("OBJECT_STORAGE_ENABLED", env_bool("USE_S3_STORAGE"))
+if EXTERNAL_SERVICES_REQUIRED:
+    from urllib.parse import urlsplit
+
+    endpoint = urlsplit(os.getenv("AWS_S3_ENDPOINT_URL", ""))
+    if not OBJECT_STORAGE_ENABLED or endpoint.scheme != "https" or not endpoint.hostname:
+        raise ImproperlyConfigured("The external beta requires private object storage with an HTTPS endpoint.")
+    if not all(os.getenv(key) for key in ("AWS_STORAGE_BUCKET_NAME", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")):
+        raise ImproperlyConfigured("Set the private object storage bucket and credentials.")
 if OBJECT_STORAGE_ENABLED:
     STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage", "OPTIONS": {
         "bucket_name": os.environ["AWS_STORAGE_BUCKET_NAME"],
@@ -241,8 +250,6 @@ if OBJECT_STORAGE_ENABLED:
 if env_bool("DJANGO_TRUST_PROXY"):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 if not DEBUG and SECRET_KEY == "unsafe-development-key-change-me":
-    from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured("Set a unique DJANGO_SECRET_KEY before disabling debug.")
 if PROCESSING_MODE not in {"manual", "celery"}:
-    from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured("PROCESSING_MODE must be manual or celery.")

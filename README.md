@@ -4,6 +4,12 @@ ScanToForms turns completed paper questionnaires into reviewed, structured respo
 
 Survey-reward campaigns and respondent monetization are not part of this product.
 
+## ZERO-BUDGET / FREE-TIER CONTROLLED BETA
+
+Follow [the setup checklist](docs/RENDER_SETUP.md) in this order: **Neon → Upstash → private Cloudflare R2 Standard → Resend → Render backend → Render frontend → Ubuntu worker → first end-to-end test**. It lists every provider value to copy. The existing dynamic Next.js routes require a Free Web Service; an isolated static-export trial failed on `/orders/[reference]`, so no routing rewrite is made.
+
+`render.yaml` creates **only two Render Free application services**: Django and Next.js. It creates no PostgreSQL, Redis/Key Value, worker or persistent disk. Neon is the database, Upstash is the TLS Celery queue, and R2 stores private uploads shared with the Ubuntu OCR worker. Resend sends email over HTTPS. Run the worker only for queued batches. All providers have usage limits; do not automatically upgrade or treat this as permanently free infrastructure. Real external connectivity remains untested until credentials are supplied.
+
 ## What is implemented
 
 - Django REST API, PostgreSQL, Redis and Celery

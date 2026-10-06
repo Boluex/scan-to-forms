@@ -1,5 +1,7 @@
 # ScanToForms Render live acceptance report
 
+> **Historical report — deployment instructions superseded September 28, 2026.** Render-managed database/Key Value references below describe the old proposal only. Use [the current Neon/Upstash/R2/Resend setup](RENDER_SETUP.md) and [current acceptance checklist](RENDER_TEST_DEPLOYMENT.md). These historical local results do not establish live acceptance of the new topology.
+
 Assessment: 2026-09-25. **Current constraint: $0; free Render resources only.** This supersedes the prior proposed paid-worker deployment. No paid worker, paid disk or object-storage service is authorized. The product remains the existing two-service MVP.
 
 **Overall verdict: NOT FULLY ACCEPTED.** Deployment awaits Render connection and owner configuration. Live OCR and upload persistence are blocked by infrastructure. Real Google execution remains **TESTING REQUIRED** and is deferred until its prerequisites are ready. Local passes are not Render passes.
