@@ -1,3 +1,4 @@
+# Build from the repository root: docker build -f backend/Dockerfile.render .
 # API-only image: intentionally excludes Paddle/Celery worker build stages.
 FROM python:3.13-slim AS base
 
@@ -11,10 +12,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-dejavu-core libgl1 libglib2.0-0 libmagic1 tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements/base.txt requirements/base.txt
+COPY backend/requirements/base.txt requirements/base.txt
 RUN pip install -r requirements/base.txt
 
-COPY . .
+COPY backend/ .
 
 FROM base AS production
 RUN useradd --create-home --uid 10001 appuser \

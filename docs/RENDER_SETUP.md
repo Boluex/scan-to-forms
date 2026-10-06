@@ -99,9 +99,11 @@ Push this revision to your connected Git repository. Create **New → Web Servic
 | Instance Type | Free |
 | Root Directory | Leave empty |
 | Dockerfile Path | `./backend/Dockerfile.render` |
-| Docker Build Context | `./backend` |
+| Docker Build Context | `.` (repository root) |
 | Docker Command | Leave empty (image default) |
 | Health Check Path | `/health/` |
+
+The Dockerfile explicitly copies `backend/requirements/base.txt` and `backend/` from the repository root. Its location does not set the build context. For an existing manually created service, update its Docker Build Context to `.` and leave Root Directory empty; changing `render.yaml` alone does not update manual service settings. The root `.dockerignore` includes backend source while excluding local credentials, uploads and databases.
 
 Alternatively, **New → Blueprint** with `render.yaml` creates just the two separate application services. Do not also create duplicate services manually. The Blueprint has no databases, Key Value, worker or disk. Existing resources from an older setup are not deleted by editing this file; no account resources have been inspected or modified here.
 

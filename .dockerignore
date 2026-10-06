@@ -1,0 +1,19 @@
+# The Render API builds from the repository root and needs only backend files.
+**
+!backend/
+!backend/**
+
+# Keep local secrets, uploaded files, databases and generated files out.
+backend/.env
+backend/.env.*
+backend/*.sqlite3
+backend/*.sqlite3-*
+backend/media/
+backend/staticfiles/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/.coverage
+backend/.venv/
+backend/.git/
