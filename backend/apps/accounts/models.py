@@ -47,6 +47,7 @@ class User(AbstractUser):
     account_status = models.CharField(
         max_length=20, choices=AccountStatus.choices, default=AccountStatus.PENDING, db_index=True
     )
+    firebase_uid = models.CharField(max_length=128, unique=True, null=True, blank=True)
     email_verified_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = "email"

@@ -22,3 +22,6 @@ node_modules/
 .DS_Store
 frontend/test-results/
 frontend/playwright-report/
+
+# Private local OCR/review artifacts
+local-results/

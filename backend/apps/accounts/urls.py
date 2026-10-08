@@ -11,7 +11,11 @@ from .views import (
     VerifyEmailView,
 )
 
+from .google import GoogleLoginView, GoogleLinkView
+
 urlpatterns = [
+    path("google/", GoogleLoginView.as_view(), name="google-login"),
+    path("google/link/", GoogleLinkView.as_view(), name="google-link"),
     path("register/", RegisterView.as_view(), name="register"),
     path("login/", LoginView.as_view(), name="login"),
     path("token/refresh/", RefreshView.as_view(), name="token-refresh"),

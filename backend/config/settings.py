@@ -253,3 +253,8 @@ if not DEBUG and SECRET_KEY == "unsafe-development-key-change-me":
     raise ImproperlyConfigured("Set a unique DJANGO_SECRET_KEY before disabling debug.")
 if PROCESSING_MODE not in {"manual", "celery"}:
     raise ImproperlyConfigured("PROCESSING_MODE must be manual or celery.")
+
+# Firebase is optional until the project credentials have been configured.
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "")
+FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
+FIREBASE_PUSH_ENABLED = env_bool("FIREBASE_PUSH_ENABLED")

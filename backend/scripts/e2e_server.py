@@ -8,6 +8,8 @@ root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root))
 with tempfile.TemporaryDirectory(prefix='scantoforms-e2e-') as directory:
     os.environ.update({
+        'SCANTO_FORMS_ENV_FILE': '/dev/null', 'EXTERNAL_SERVICES_REQUIRED': 'false',
+        'OBJECT_STORAGE_ENABLED': 'false', 'FIREBASE_PUSH_ENABLED': 'false',
         'DJANGO_SETTINGS_MODULE': 'config.settings', 'DJANGO_DEBUG': 'true',
         'DATABASE_URL': f'sqlite:///{directory}/test.sqlite3', 'MEDIA_ROOT': f'{directory}/media',
         'PROCESSING_MODE': 'manual', 'TEST_DEPLOYMENT': 'true', 'USE_S3_STORAGE': 'false',
@@ -25,4 +27,5 @@ with tempfile.TemporaryDirectory(prefix='scantoforms-e2e-') as directory:
     call_command('migrate', interactive=False, verbosity=0)
     # Test credentials exist only inside this disposable database.
     User.objects.create_user(email='operator@example.test', name='E2E Operator', password='E2E-Operator-43892!', is_staff=True)
+    User.objects.create_superuser(email='admin@example.test', name='E2E Administrator', password='E2E-Admin-43892!')
     call_command('runserver', '127.0.0.1:8107', use_reloader=False)

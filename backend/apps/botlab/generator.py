@@ -10,14 +10,26 @@ def _option_values(question):
 
 def synthetic_answer(question, index, rng):
     options = _option_values(question)
-    if question.type in (Question.Type.SINGLE_CHOICE, Question.Type.DROPDOWN, Question.Type.SINGLE_GRID):
+    if question.type in (Question.Type.SINGLE_GRID, Question.Type.MULTIPLE_GRID):
+        rows = question.validation_rules.get("rows", [])
+        columns = question.validation_rules.get("columns", [])
+        if not rows or not columns:
+            raise ValueError(f"{question.key}: grids need configured rows and columns.")
+        return [
+            rng.choice(columns) if question.type == Question.Type.SINGLE_GRID
+            else rng.sample(columns, k=rng.randint(1, len(columns)))
+            for _ in rows
+        ]
+    if question.type in (Question.Type.SINGLE_CHOICE, Question.Type.DROPDOWN):
         return rng.choice(options) if options else "Synthetic option"
-    if question.type in (Question.Type.MULTIPLE_CHOICE, Question.Type.MULTIPLE_GRID):
+    if question.type == Question.Type.MULTIPLE_CHOICE:
         if not options:
             return ["Synthetic option"]
         return rng.sample(options, k=rng.randint(1, min(3, len(options))))
     if question.type in (Question.Type.LIKERT, Question.Type.LINEAR_SCALE):
-        return rng.choice(options) if options else rng.randint(1, 5)
+        return rng.choice(options) if options else rng.randint(
+            int(question.validation_rules.get("min", 1)), int(question.validation_rules.get("max", 5))
+        )
     if question.type == Question.Type.NUMBER:
         minimum = int(question.validation_rules.get("min", 18))
         maximum = int(question.validation_rules.get("max", max(minimum, 65)))
@@ -44,4 +56,3 @@ def generate_payloads(version, count, seed):
                 answers[question.key] = synthetic_answer(question, index, rng)
         payloads.append(answers)
     return payloads
-

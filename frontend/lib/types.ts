@@ -7,6 +7,7 @@ export type Paginated<T> = {
 
 export type User = {
   is_staff: boolean;
+  is_superuser: boolean;
   id: string;
   email: string;
   name: string;

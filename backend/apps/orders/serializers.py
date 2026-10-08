@@ -18,11 +18,14 @@ class OrderCreateSerializer(serializers.Serializer):
     synthetic_response_count = serializers.IntegerField(min_value=0, default=0)
     instructions = serializers.CharField(max_length=10000, allow_blank=True, default="")
     google_form_url = serializers.CharField(max_length=500, allow_blank=True, default="")
+    create_new_form = serializers.BooleanField(default=False)
     questions = serializers.ListField(
         child=serializers.CharField(max_length=2000), max_length=500, default=list
     )
 
     def validate(self, attrs):
+        if attrs["create_new_form"] and (attrs["google_form_url"] or attrs["service_type"] != "DIGITIZATION"):
+            raise serializers.ValidationError("New Form delivery is for digitization orders without an existing Form URL.")
         if attrs["service_type"] == "DIGITIZATION":
             if (
                 not 1 <= attrs["respondent_count"] <= settings.MAX_ORDER_RESPONDENTS
@@ -83,6 +86,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "instructions",
             "google_form_url",
             "google_form_id",
+            "create_new_form",
             "amount_ngn",
             "pricing_snapshot",
             "payment_method",

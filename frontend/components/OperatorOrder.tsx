@@ -284,6 +284,7 @@ export default function OperatorOrder({
           {order.service_type === "DIGITIZATION" && (
             <details>
               <summary>Prepare final Google Apps Script</summary>
+              {order.create_new_form ? <p>The customer chose a new Google Form. The approved schema will generate its questions; no existing Form URL is needed.</p> : <>
               <label className="field">
                 Google Form edit URL or ID
                 <input
@@ -302,6 +303,7 @@ export default function OperatorOrder({
                   />
                 </label>
               ))}
+              </>}
               <button
                 disabled={busy}
                 onClick={() =>

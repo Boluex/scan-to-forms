@@ -44,6 +44,7 @@ class Order(models.Model):
     instructions = models.TextField(blank=True)
     google_form_url = models.CharField(max_length=500, blank=True)
     google_form_id = models.CharField(max_length=180, blank=True)
+    create_new_form = models.BooleanField(default=False)
     amount_ngn = models.DecimalField(max_digits=12, decimal_places=2)
     pricing_snapshot = models.JSONField(default=dict)
     payment_method = models.CharField(max_length=24, default="BANK_TRANSFER", editable=False)

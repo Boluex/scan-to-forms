@@ -1,4 +1,5 @@
 "use client";
+import PushSettings from "@/components/PushSettings";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -21,7 +22,12 @@ export default function Notifications() {
     [page],
   );
   useEffect(() => {
-    load().catch((e) => setError(e.message));
+    const refresh = () => {
+      load().catch((e) => setError(e.message));
+    };
+    refresh();
+    window.addEventListener("notifications-updated", refresh);
+    return () => window.removeEventListener("notifications-updated", refresh);
   }, [load]);
   async function read(id?: string) {
     try {
@@ -38,7 +44,14 @@ export default function Notifications() {
   }
   return (
     <div className="form-stack">
-      <h1>Notifications</h1>
+      <header className="page-header">
+        <div>
+          <p className="section-kicker">Your inbox</p>
+          <h1>Notifications</h1>
+          <p>Order updates and announcements, all in one place.</p>
+        </div>
+      </header>
+      <PushSettings />
       {error && <p role="alert">{error}</p>}
       <button onClick={() => void read()}>Mark all read</button>
       {data?.results.map((n) => (

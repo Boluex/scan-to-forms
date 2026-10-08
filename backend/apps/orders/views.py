@@ -380,14 +380,14 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             if errors:
                 raise ValidationError({response.respondent_reference: errors})
         mappings = request.data.get("mappings", {})
-        if not isinstance(mappings, dict) or any(
+        if not order.create_new_form and (not isinstance(mappings, dict) or any(
             not isinstance(mappings.get(q.key), str) or not mappings[q.key].strip()
             for q in order.response_batch.questionnaire_version.questions.all()
-        ):
+        )):
             raise ValidationError(
                 "Map every questionnaire question before preparing the final script."
             )
-        form_id = normalize_form_id(request.data.get("form_id") or order.google_form_id)
+        form_id = "" if order.create_new_form else normalize_form_id(request.data.get("form_id") or order.google_form_id)
         from types import SimpleNamespace
 
         serializer = AppsScriptCreateSerializer(
@@ -395,6 +395,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 "source_type": "RESPONSE_BATCH",
                 "source_id": str(order.response_batch_id),
                 "form_id": form_id,
+                "create_new_form": order.create_new_form,
                 "mappings": request.data.get("mappings", {}),
             },
             context={"request": SimpleNamespace(user=order.user)},

@@ -10,6 +10,7 @@ export type Order = {
   synthetic_response_count: number;
   google_form_url: string;
   google_form_id: string;
+  create_new_form: boolean;
   amount_ngn: string;
   payment_status: string;
   payment_rejection_reason: string;

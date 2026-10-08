@@ -76,7 +76,11 @@ export async function authorizedFetch(
     const token = localStorage.getItem("scanforms_access");
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers,
+  });
   if (
     response.status === 401 &&
     retry &&
@@ -116,6 +120,12 @@ export async function download(path: string, fallbackName: string) {
 export async function logout() {
   const refresh = localStorage.getItem("scanforms_refresh");
   try {
+    const { disablePush, removeBrowserPush } = await import("./push");
+    try {
+      await disablePush();
+    } catch {
+      await removeBrowserPush();
+    }
     if (refresh)
       await api("/auth/logout/", {
         method: "POST",
@@ -126,3 +136,22 @@ export async function logout() {
   }
 }
 export { API_URL };
+
+export function signInDestination() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (!next) return "/orders";
+  try {
+    const target = new URL(next, window.location.origin);
+    if (
+      target.origin === window.location.origin &&
+      /^\/(orders|notifications|account|digitize|synthetic|admin|dashboard)(\/|$)/.test(
+        target.pathname,
+      )
+    ) {
+      return target.pathname + target.search + target.hash;
+    }
+  } catch {
+    /* Fall back to the workspace for malformed URLs. */
+  }
+  return "/orders";
+}

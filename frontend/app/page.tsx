@@ -1,101 +1,228 @@
 import Link from "next/link";
+import {
+  ArrowRight,
+  ScanLine,
+  Check,
+  FileText,
+  ShieldCheck,
+  FlaskConical,
+  Bell,
+} from "lucide-react";
 export default function Home() {
   return (
-    <>
-      <header className="mvp-nav">
+    <div className="public-site">
+      <header className="public-header">
         <Link href="/" className="brand">
+          <span className="brand-mark">
+            <ScanLine size={21} />
+          </span>
           ScanToForms
         </Link>
         <nav aria-label="Main navigation">
-          <Link href="/digitize">Digitize Questionnaire</Link>
-          <Link href="/synthetic">Synthetic Test Data</Link>
-          <Link href="/orders">My Orders</Link>
+          <a href="#how-it-works">How it works</a>
+          <a href="#services">Our services</a>
           <Link href="/login">Log in</Link>
         </nav>
+        <Link href="/register" className="btn btn-primary">
+          Get started <ArrowRight size={16} />
+        </Link>
       </header>
-      <main className="mvp-content">
-        <section className="mvp-hero">
-          <p className="eyebrow">
-            Paper to structured responses · Controlled beta
-          </p>
-          <h1>Turn Paper Questionnaires Into Google Form Responses</h1>
-          <p>
-            Upload completed questionnaires, review responses with our operator,
-            and receive a Google Apps Script for your existing form.
-          </p>
-          <div className="button-row">
-            <Link className="btn btn-primary" href="/digitize">
-              Digitize Questionnaire
-            </Link>
-            <Link className="btn btn-secondary" href="/synthetic">
-              Synthetic Test Data
-            </Link>
+      <main>
+        <section className="home-hero">
+          <div>
+            <p className="section-kicker">A clearer path from paper to data</p>
+            <h1>
+              Less data entry.
+              <br />
+              <span>More discovery.</span>
+            </h1>
+            <p className="home-lede">
+              Turn your completed questionnaires into organised, reviewed
+              responses. One workspace to upload, track, and collect your
+              results.
+            </p>
+            <div className="button-row">
+              <Link href="/digitize" className="btn btn-primary btn-large">
+                Digitize my questionnaires <ArrowRight size={18} />
+              </Link>
+              <a href="#how-it-works" className="quiet-link">
+                See how it works
+              </a>
+            </div>
+            <p className="hero-footnote">
+              <ShieldCheck size={16} /> Private uploads. Human review. Your
+              research.
+            </p>
+          </div>
+          <div
+            className="research-preview"
+            aria-label="Illustration of the questionnaire review workflow"
+          >
+            <div className="preview-caption">
+              <span className="tiny-dot" /> YOUR RESEARCH WORKSPACE{" "}
+              <span>Preview</span>
+            </div>
+            <div className="preview-document">
+              <div className="preview-file">
+                <FileText size={24} />
+                <div>
+                  <strong>Final year research</strong>
+                  <small>Completed questionnaires</small>
+                </div>
+                <span className="file-extension">PDF</span>
+              </div>
+              <div className="preview-rule" />
+              <div className="sample-answer">
+                <span>01</span>
+                <div>
+                  <small>Department</small>
+                  <strong>Engineering</strong>
+                </div>
+                <Check size={18} />
+              </div>
+              <div className="sample-answer">
+                <span>02</span>
+                <div>
+                  <small>Level of study</small>
+                  <strong>Undergraduate</strong>
+                </div>
+                <Check size={18} />
+              </div>
+              <div className="sample-answer">
+                <span>03</span>
+                <div>
+                  <small>Response status</small>
+                  <strong>Reviewed and organised</strong>
+                </div>
+                <Check size={18} />
+              </div>
+            </div>
+            <div className="preview-progress">
+              <span>
+                <Check size={14} /> Upload
+              </span>
+              <i />
+              <span>
+                <Check size={14} /> Review
+              </span>
+              <i />
+              <strong>Results</strong>
+            </div>
+            <div className="preview-notice">
+              <Bell size={19} />
+              <div>
+                <strong>Your results, ready when you are.</strong>
+                <small>Get an update in your notification inbox.</small>
+              </div>
+            </div>
           </div>
         </section>
-        <section className="mvp-services">
-          <article className="mvp-panel">
-            <h2>Digitize completed questionnaires</h2>
-            <p>
-              Keep every respondent’s pages together. Upload ordered images,
-              capture one page at a time, or upload one complete PDF per
-              respondent.
-            </p>
-            <p>
-              120 respondents with four pages each means 480 uploaded pages and
-              120 logical responses. Uncertain pages and answers need operator
-              review.
-            </p>
-            <ol>
-              <li>Set up your job and upload the completed questionnaires.</li>
-              <li>Check the page count and pay by bank transfer.</li>
-              <li>
-                We verify payment, prepare the data, and resolve review issues.
-              </li>
-              <li>
-                Copy your Apps Script, check its mapping, and run it in your
-                Google account.
-              </li>
-            </ol>
-            <Link href="/digitize">Start digitization →</Link>
-          </article>
-          <article className="mvp-panel">
-            <h2>Synthetic Test Data</h2>
-            <p>
-              <strong>
-                SYNTHETIC TEST DATA — not real research respondents.
-              </strong>
-            </p>
-            <p>
-              Upload one blank questionnaire as a PDF or images, choose a
-              response count, and send instructions. An operator prepares and
-              checks a labelled dataset for testing forms and data workflows.
-            </p>
-            <p>
-              Pay by bank transfer. We’ll notify you when your order is ready.
-              Labelled CSV is supported; synthetic submission to Google Forms is
-              not enabled in this beta.
-            </p>
-            <Link href="/synthetic">Request synthetic test data →</Link>
-          </article>
+        <section id="how-it-works" className="home-section">
+          <div className="section-intro">
+            <p className="section-kicker">Simple from the start</p>
+            <h2>
+              Your next chapter starts
+              <br />
+              with a clearer workflow.
+            </h2>
+            <p>Four steps from a stack of paper to data you can use.</p>
+          </div>
+          <div className="workflow-grid">
+            {[
+              [
+                "01",
+                "Upload your pages",
+                "Add one PDF per respondent or ordered page images. Keep multi-page responses together.",
+              ],
+              [
+                "02",
+                "Confirm your order",
+                "Check your page count and pricing, then submit your bank transfer for verification.",
+              ],
+              [
+                "03",
+                "We process and review",
+                "An operator checks the extracted answers and resolves uncertain pages.",
+              ],
+              [
+                "04",
+                "Collect your results",
+                "Receive an update, download your data, and use your Apps Script with your Google Form.",
+              ],
+            ].map(([number, title, text]) => (
+              <article key={number}>
+                <span>{number}</span>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </article>
+            ))}
+          </div>
         </section>
-        <section className="mvp-panel">
-          <h2>Know what to expect</h2>
-          <p>
-            Results are released after payment verification and review.
-            Handwriting, faint marks, and complex grids may need manual
-            transcription. Upload respondent pages in order; shuffled pages
-            cannot reliably identify their respondent.
-          </p>
-          <p>
-            You control the existing Google Form and authorize Google Apps
-            Script yourself. We never request your Google password or claim to
-            have verified form ownership.
-          </p>
+        <section id="services" className="home-section service-section">
+          <div className="section-intro">
+            <p className="section-kicker">Choose your starting point</p>
+            <h2>Two ways to move forward.</h2>
+          </div>
+          <div className="service-grid">
+            <article>
+              <div className="section-icon">
+                <ScanLine />
+              </div>
+              <h3>Questionnaire digitization</h3>
+              <p>
+                For completed paper responses. Upload, track progress, and
+                receive reviewed data for your research workflow.
+              </p>
+              <Link href="/digitize">
+                Start digitizing <ArrowRight size={17} />
+              </Link>
+            </article>
+            <article>
+              <div className="section-icon">
+                <FlaskConical />
+              </div>
+              <h3>Synthetic test data</h3>
+              <p>
+                For testing forms and analysis tools. Get clearly labelled
+                sample data. Synthetic data does not represent real research
+                respondents.
+              </p>
+              <Link href="/synthetic">
+                Create test data <ArrowRight size={17} />
+              </Link>
+            </article>
+          </div>
+        </section>
+        <section className="home-callout">
+          <div>
+            <p className="section-kicker">
+              Make room for the work that matters
+            </p>
+            <h2>
+              Your research deserves
+              <br />a little less busywork.
+            </h2>
+            <p>
+              Handwriting and complex layouts may need manual transcription.
+              <br />
+              Every result is released after payment verification and review.
+            </p>
+          </div>
+          <Link href="/register" className="btn btn-primary btn-large">
+            Create your workspace <ArrowRight size={18} />
+          </Link>
         </section>
       </main>
-      <footer className="mvp-content">
-        ScanToForms · Two services. Human review where it matters.
+      <footer className="public-footer">
+        <Link href="/" className="brand">
+          <ScanLine size={21} />
+          ScanToForms
+        </Link>
+        <p>Paper questionnaires. Clearer possibilities.</p>
+        <Link href="/login">
+          Open workspace <ArrowRight size={14} />
+        </Link>
       </footer>
-    </>
+    </div>
   );
 }

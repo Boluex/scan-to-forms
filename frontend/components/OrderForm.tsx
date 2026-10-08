@@ -12,6 +12,7 @@ export default function OrderForm({
   const [config, setConfig] = useState<Configuration | null>(null);
   const [count, setCount] = useState(1);
   const [pages, setPages] = useState(1);
+  const [createNewForm, setCreateNewForm] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -35,7 +36,8 @@ export default function OrderForm({
           expected_page_count: pages,
           synthetic_response_count: synthetic ? count : 0,
           question_count: Number(data.get("question_count")),
-          google_form_url: data.get("google_form_url"),
+          google_form_url: data.get("google_form_url") ?? "",
+          create_new_form: !synthetic && createNewForm,
           instructions: data.get("instructions"),
           questions: String(data.get("questions") ?? "")
             .split("\n")
@@ -62,7 +64,7 @@ export default function OrderForm({
           <p>
             {synthetic
               ? "A human-assisted service for testing questionnaires, forms and data workflows."
-              : "Turn completed paper questionnaires into an Apps Script for your existing Google Form."}
+              : "Digitize completed questionnaires and create a new Google Form or use an existing one."}
           </p>
         </div>
       </header>
@@ -127,7 +129,15 @@ export default function OrderForm({
             defaultValue={1}
           />
         </label>
-        <label className="field">
+        {!synthetic && <label className="field">
+          Google Forms destination
+          <select value={createNewForm ? "new" : "existing"} onChange={(e) => setCreateNewForm(e.target.value === "new")}>
+            <option value="existing">Use my existing Google Form</option>
+            <option value="new">Create a new Google Form</option>
+          </select>
+          <small>The result includes code and instructions to run in your Google account.</small>
+        </label>}
+        {!synthetic && !createNewForm && <label className="field">
           Google Form edit URL or ID (optional for now)
           <input
             name="google_form_url"
@@ -138,7 +148,7 @@ export default function OrderForm({
             Use the edit URL, not a forms.gle or published /d/e/ link. We do not
             verify Google ownership and never ask for your Google password.
           </small>
-        </label>
+        </label>}
         <label className="field">
           Questions, one per line (optional)
           <textarea

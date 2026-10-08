@@ -72,6 +72,22 @@ def notify(order, kind, title, message=""):
     )
 
 
+def notify_operators(order, event, title):
+    from apps.accounts.models import User
+
+    for admin in User.objects.filter(is_staff=True, is_active=True).exclude(
+        account_status__in=["SUSPENDED", "DEACTIVATED"]
+    ):
+        # Called while holding the order lock. A repeated submission must not
+        # create another inbox/push event for the same administrator.
+        Notification.objects.get_or_create(
+            user=admin,
+            kind="SYSTEM",
+            data={"order_reference": order.reference, "event": event},
+            defaults={"title": title, "message": "Open the order to review the request."},
+        )
+
+
 def transition(order, target, actor, *, note=""):
     if target not in TRANSITIONS.get(order.status, set()):
         raise ValidationError(f"Cannot transition {order.status} to {target}.")
@@ -218,6 +234,7 @@ def submit_for_payment(order, actor):
             "Upload the expected pages and resolve duplicate/missing pages before payment."
         )
     transition(order, "AWAITING_PAYMENT", actor)
+    notify_operators(order, "ORDER_SUBMITTED", f"{order.reference}: new request submitted")
     return order
 
 
@@ -233,6 +250,10 @@ def claim_payment(order, actor, sender="", reference=""):
     order.payment_rejection_reason = ""
     transition(order, "PAYMENT_SUBMITTED", actor)
     log_event(order, actor, "payment_claimed", metadata={"sender_name": sender, "payment_reference": reference})
+    notify_operators(
+        order, f"PAYMENT_CLAIMED:{order.payment_claimed_at.isoformat()}",
+        f"{order.reference}: payment needs verification",
+    )
     return order
 
 
@@ -455,7 +476,7 @@ def readiness_errors(order):
         for response in responses:
             errors.extend(f"{response.respondent_reference}: {e}" for e in final_errors(response))
         if not order.apps_script_job_id:
-            errors.append("Prepare the final Apps Script for the existing Google Form.")
+            errors.append("Prepare the final Google Apps Script.")
     else:
         if (
             not order.bot_run_id

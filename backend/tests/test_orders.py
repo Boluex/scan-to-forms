@@ -247,8 +247,11 @@ def test_duplicate_upload_and_retry_idempotency(client):
     assert result.status_code == 400
 
 
-def test_manual_paid_digitization_to_ready_script(client, operator_client):
+@pytest.mark.parametrize("create_new_form", [False, True])
+def test_manual_paid_digitization_to_ready_script(client, operator_client, create_new_form):
     order = paid_order(client, operator_client)
+    order.create_new_form = create_new_form
+    order.save(update_fields=["create_new_form"])
     prepare(operator_client, order)
     root = f"/api/v1/orders/{order.reference}/"
     assert operator_client.post(root + "process/").status_code == 200

@@ -4,6 +4,8 @@ ScanToForms turns completed paper questionnaires into reviewed, structured respo
 
 Survey-reward campaigns and respondent monetization are not part of this product.
 
+The admin-operated journey is upload → payment verification → processing/review → ready notification → result and setup instructions. See [workflow and remaining limits](docs/OPERATED_DIGITIZATION_WORKFLOW.md), [Ubuntu terminal commands](docs/LOCAL_WORKFLOWS.md), [optional AI processing instructions](docs/AI_DIGITIZATION_PIPELINE.md), and [Google Forms delivery guide](docs/GOOGLE_FORMS_DELIVERY_GUIDE.md). PaddleOCR runs locally; no additional LLM is required. New-Form creation and existing-Form submission scripts are supported for reviewed digitization orders; Google execution and real-device push still need acceptance testing.
+
 ## ZERO-BUDGET / FREE-TIER CONTROLLED BETA
 
 Follow [the setup checklist](docs/RENDER_SETUP.md) in this order: **Neon → Upstash → private Cloudflare R2 Standard → Resend → Render backend → Render frontend → Ubuntu worker → first end-to-end test**. It lists every provider value to copy. The existing dynamic Next.js routes require a Free Web Service; an isolated static-export trial failed on `/orders/[reference]`, so no routing rewrite is made.
@@ -364,3 +366,14 @@ npm run build
 - Advanced analytics, priority Celery routing and self-service organization invitations remain roadmap items.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for product boundaries and system design.
+
+
+## PWA, Google sign-in, admin and Ubuntu setup
+
+The frontend now has a minimal workspace, responsive navigation, an installable PWA manifest and an offline fallback. Private user data is not stored in the service-worker cache. `/admin` provides account administration, announcement previews, delivery counters and audit activity; only superusers or staff with the ADMIN role can use it. Operators retain order/review access. Superusers can grant/revoke operator access; users cannot suspend themselves or change superusers here.
+
+- [Firebase credentials and activation checklist](docs/FIREBASE_SETUP.md)
+- [Ubuntu worker service setup](docs/REMOTE_OCR_WORKER.md)
+- [Distributed student workers: proposal only](docs/DISTRIBUTED_WORKERS_PROPOSAL.md)
+
+Order events create inbox records and, when enabled, durable per-device push deliveries. A separate `send_push_notifications --watch` process delivers them. Google sign-in and push require Firebase configuration. Password registration and reset still require the existing email transport; Google users do not need app verification mail. Deployment variables under `NEXT_PUBLIC_` require a frontend rebuild.

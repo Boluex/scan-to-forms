@@ -286,7 +286,7 @@ export default function OrderPage() {
                 rows={12}
                 value={script}
               />
-              <ScriptInstructions />
+              <ScriptInstructions createNewForm={order.create_new_form} />
             </>
           )}
           {order.status === "READY" && (

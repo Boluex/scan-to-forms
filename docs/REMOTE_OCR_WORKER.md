@@ -124,3 +124,23 @@ Keep the controlled-beta notice and record actual acceptance evidence. With conf
 8. Record remaining limitations explicitly. Eight pages do not validate 480-page throughput. Real Google authorization/submission remains a separate owner-operated acceptance test.
 
 This topology leaves the customer product flow unchanged. It requires verified private storage, functioning external network access and an available worker before promising OCR turnaround or accepting paid pilots.
+
+
+## Ubuntu user services (this repository checkout)
+
+`scripts/install-worker.py` installs two systemd **user** services using this checkout's `.venv`, ignored `.env.worker`, and persistent `.cache/paddlex`. Paths with spaces are supported. It sets one OCR process and one BLAS/OpenMP thread to begin conservatively. It does not install dependencies, enable automatic startup, or start push without credentials.
+
+```bash
+SCANTO_FORMS_ENV_FILE="$PWD/.env.worker" .venv/bin/python backend/manage.py worker_preflight
+python3 scripts/install-worker.py --start
+systemctl --user is-active scanforms-ocr
+systemctl --user stop scanforms-ocr
+systemctl --user start scanforms-ocr
+journalctl --user -u scanforms-ocr -n 50 --no-pager
+```
+
+Preflight verifies database schema, broker connectivity and private bucket access without reading customer documents. Run it after code/config updates. Install matching requirements and apply migrations before restarting workers. The script keeps `.env.worker` permissions at `600`; it does not copy credentials into a service unit.
+
+The worker can consume paid queued jobs once started. Stop it when no processing is needed for the controlled beta; Redis polling still incurs usage. Do not enable automatic login startup or user lingering unless you deliberately want continuous processing. User services depend on your user session, machine power and connectivity.
+
+After configuring Firebase per [FIREBASE_SETUP.md](FIREBASE_SETUP.md), run `systemctl --user start scanforms-push`. This lightweight process drains the PostgreSQL notification outbox every 30 seconds independently of OCR. Leave it running if users need timely alerts; stopping OCR alone does not stop it. Without this sender, inbox records remain available but browser pushes wait. Firebase credentials belong in the API and sender; OCR-only hosts do not need them.

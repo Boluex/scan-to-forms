@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 const api = "http://127.0.0.1:8107/api/v1";
-test("customer upload, manual bank verification, operator review and final delivery", async ({
+for (const createNewForm of [false, true]) {
+test(`customer upload, payment, review and ${createNewForm ? "new" : "existing"} Form delivery`, async ({
   page,
   browser,
   request,
@@ -20,6 +21,7 @@ test("customer upload, manual bank verification, operator review and final deliv
   await page
     .getByRole("link", { name: "Digitize Questionnaire", exact: true })
     .click();
+  if (createNewForm) await page.getByLabel("Google Forms destination").selectOption("new");
   await page.getByLabel("Job title").fill("Browser questionnaire");
   await page.getByLabel(/Questions, one per line/).fill("Department?");
   await page.getByRole("button", { name: /Create order and continue/ }).click();
@@ -122,6 +124,10 @@ test("customer upload, manual bank verification, operator review and final deliv
     "Engineering",
   );
   await expect(page.getByText(/previewMapping/).first()).toBeVisible();
+  if (createNewForm) {
+    await expect(page.getByLabel("Generated Apps Script")).toContainText("createQuestionnaire");
+    await expect(page.getByRole("heading", { name: "Create your Google Form and import reviewed answers" })).toBeVisible();
+  }
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download XLSX" }).click();
   const file = await downloadPromise;
@@ -132,3 +138,5 @@ test("customer upload, manual bank verification, operator review and final deliv
   await expect(page).toHaveURL(/\/login$/);
   await operator.close();
 });
+
+}
